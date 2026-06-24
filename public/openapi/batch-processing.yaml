@@ -1,0 +1,579 @@
+openapi: 3.0.3
+info:
+  title: MerchantE Batch Processing API
+  description: |
+    The MerchantE (ME) Batch Processing API enables merchants and resellers to process live credit card transactions in a batch format. Additionally, merchants can utilize the ME reporting tool to upload batches manually.
+
+    Batch Processing functionality allows a merchant to send a batch of transactions to the MerchantE (ME) Reporting Tool for processing. Batch request files can be sent to ME in two ways:
+    - Through the ME reporting portal
+    - Through an API call to ME
+
+    Batch response files can be retrieved from ME in two ways:
+    - Through an API call to ME
+    - From the ME reporting web portal
+
+    Processing time will vary depending on the transaction type and overall size of the batch, however all batches will be processed within 24 hours of submission. The batch processing option may be used for large recurring files that require both authorization and capture (sale transaction), or in conjunction with the Payment Gateway (ex: captures at the end of day for all online authorizations).
+
+    **Batch Processing Best Practices:**
+    There are some functions in the Payment Gateway that may not be ideal when submitting transactions in a batch mode. Examples include:
+    - Transactions that need to reference a prior transactions are not good candidates for batch processing
+    - Sending multiple settlements for a single authorization concurrently is not recommended within the same batch
+    - Transactions such as a settlement followed immediately by a void should be avoided
+
+    **Related Documentation:**
+    - MerchantE Payment Gateway Specification
+    - MerchantE Technical Documentation: http://developer.merchante.com
+    - PCI Security Standards: https://www.pcisecuritystandards.org/
+
+    **Copyright Notice:**
+    ©2024 Merchant eSolutions, Inc. All rights reserved.
+
+    Merchant e-Solutions, Inc. is a registered Agent of KeyBank, Cleveland, OH, and a registered ISO/MSP of Synovus Bank, Columbus, GA and FFB, Fresno, CA.
+
+    **Trademarks:**
+    - Mastercard® is a federally registered trademark of Mastercard International, Inc.
+    - Visa® is a federally registered trademark of Visa, U.S.A., Inc.
+    - Discover® Card is a federally registered trademark of Discover Financial Services Inc.
+    - American Express® is a federally registered trademark of American Express Company.
+    - ZIP code® and ZIP + 4® are federally registered trademarks of the United States Postal Service.
+
+    **Note:** Transactions are formatted according to the layout defined in the ME Payment Gateway Specification.
+
+    **Email Confirmation:**
+    An email will be sent upon successful receipt of a batch. A follow up email is sent once the batch has been processed and will contain a response file. Email address is configured by ME at the profile ID level.
+  version: '3.0'
+  contact:
+    name: MerchantE Support
+    url: https://www.merchante.com
+    email: help@MerchantE.com
+  x-address:
+    street: 1150 Sanctuary Parkway, Suite 300
+    city: Alpharetta
+    state: GA
+    zip: '30009'
+  x-support:
+    phone: 888-288-2692
+    email: help@MerchantE.com
+
+servers:
+  - url: https://test.merchante-solutions.com/srv/api
+    description: Test server
+
+paths:
+  /bpUpload:
+    post:
+      summary: Upload batch request file
+      description: |
+        Used to upload a batch of transactions to ME. All batch API requests are handled by an HTTPS POST to this endpoint. File data should be passed to the server using Content-Type: multipart/form-data. After uploading a file, a confirmation message is sent containing the response identification number.
+
+        The transactional data that is being uploaded should be a text file (.TXT) that has transactions formatted as outlined in the ME Payment Gateway Specification.
+      operationId: uploadBatchFile
+      tags:
+        - Batch Upload
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/UploadRequest'
+            examples:
+              batchUpload:
+                summary: Batch file upload request
+                value:
+                  userId: "merchant123"
+                  userPass: "password123"
+                  profileId: "12345678901234567890"
+                  testFlag: "N"
+                  reqFile: "(binary file content)"
+      responses:
+        '200':
+          description: File successfully uploaded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UploadConfirmation'
+              examples:
+                successfulUpload:
+                  summary: Successful upload confirmation
+                  description: Response returned when batch file is successfully received
+                  value:
+                    respFileId: "123456789012345"
+                    profileId: "12345678901234567890"
+                    rspCode: "000"
+                    rspMessage: "OK"
+        '400':
+          description: Bad Request - Invalid or missing parameters
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                invalidParameter:
+                  summary: Invalid parameter error
+                  value:
+                    rspCode: "003"
+                    rspMessage: "Invalid Parameter"
+                missingParameter:
+                  summary: Missing parameter error
+                  value:
+                    rspCode: "004"
+                    rspMessage: "Missing parameter"
+                invalidProfileId:
+                  summary: Invalid Profile ID error
+                  value:
+                    rspCode: "300"
+                    rspMessage: "Invalid Profile ID"
+                invalidTestFlag:
+                  summary: Invalid test flag error
+                  value:
+                    rspCode: "302"
+                    rspMessage: "Invalid test flag"
+        '401':
+          description: Unauthorized - Authentication error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                authError:
+                  summary: Authentication error
+                  value:
+                    rspCode: "002"
+                    rspMessage: "Authentication Error"
+        '403':
+          description: Forbidden - Batch processing not allowed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                batchNotAllowed:
+                  summary: Batch processing not enabled
+                  value:
+                    rspCode: "303"
+                    rspMessage: "Batch processing not allowed"
+        '500':
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                systemError:
+                  summary: System error
+                  value:
+                    rspCode: "001"
+                    rspMessage: "System Error"
+
+  /bpDownload:
+    post:
+      summary: Download batch response file
+      description: |
+        Used to download a batch response file. All batch API requests are handled by an HTTPS POST to this endpoint. Response files are used to determine the status of each of the transactions that was submitted in a batch.
+
+        The response file contains transaction data formatted according to the ME Payment Gateway Specification, with each transaction response on a separate line.
+
+        **Note:** A JSON error response is only returned if an error has occurred. On success, the raw text file is returned.
+      operationId: downloadBatchFile
+      tags:
+        - Batch Download
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/DownloadRequest'
+            examples:
+              downloadRequest:
+                summary: Download response file request
+                value:
+                  userId: "merchant123"
+                  userPass: "password123"
+                  respFileId: "123456789012345"
+      responses:
+        '200':
+          description: Response file successfully retrieved
+          content:
+            text/plain:
+              schema:
+                type: string
+                description: |
+                  Text file containing transaction responses, one per line, formatted according to ME Payment Gateway Specification.
+
+                  Each line contains key=value pairs separated by ampersands (&) including:
+                  - transaction_id: Unique identifier for the transaction
+                  - error_code: Response code (000 = success)
+                  - auth_response_text: Authorization response description
+                  - avs_result: Address Verification Service result
+                  - cvv2_result: Card verification value result
+                  - auth_code: Authorization code from the processor
+              examples:
+                successfulBatch:
+                  summary: Successful batch response file
+                  value: |
+                    transaction_id=ce79a48df5733202ad5f533286f6d943&error_code=000&auth_response_text=Approved&avs_result=Y&cvv2_result=M&auth_code=T7997H
+                    transaction_id=b2d7bfc52e5f3be0ad2a1845dd9f6235&error_code=000&auth_response_text=Approved&avs_result=Y&cvv2_result=M&auth_code=T8000H
+                    transaction_id=4eb67cb684e03f739a51b4eba71daba8&error_code=000&auth_response_text=Approved&avs_result=Y&cvv2_result=M&auth_code=T8004H
+                    transaction_id=aaccde8419423723b119bed4d25673a7&error_code=000&auth_response_text=Approved&avs_result=Y&cvv2_result=M&auth_code=T8008H
+                    transaction_id=de359cfeca5d389b8d351e3a9fdc0a49&error_code=000&auth_response_text=Approved&avs_result=Y&cvv2_result=M&auth_code=T8012H
+        '400':
+          description: Bad Request - Invalid response file ID
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DownloadErrorResponse'
+              examples:
+                invalidFileId:
+                  summary: Invalid response file ID
+                  value:
+                    userId: "merchant123"
+                    respFileId: "123456789012345"
+                    rspCode: "301"
+                    rspMessage: "Invalid response file ID"
+        '401':
+          description: Unauthorized - Authentication error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                authError:
+                  summary: Authentication error
+                  value:
+                    rspCode: "002"
+                    rspMessage: "Authentication Error"
+        '500':
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                systemError:
+                  summary: System error
+                  value:
+                    rspCode: "001"
+                    rspMessage: "System Error"
+
+components:
+  schemas:
+    UploadRequest:
+      type: object
+      description: |
+        Request parameters for uploading a batch file.
+
+        Per PDF Page 3 - Upload Request Parameters table.
+      required:
+        - reqFile
+        - userId
+        - userPass
+        - profileId
+      x-parameterGroups:
+        - name: Required
+          fields:
+            - reqFile
+            - userId
+            - userPass
+            - profileId
+        - name: Recommended
+          fields: []
+        - name: Others
+          fields:
+            - testFlag
+      properties:
+        reqFile:
+          type: string
+          format: binary
+          description: |
+            Contains the transaction file that is being transmitted to ME.
+            Should be a text file (.TXT) with transactions formatted as outlined in the ME Payment Gateway Specification.
+
+            Each transaction should be on a separate line using the format:
+            transaction_type=P&card_number=XXXXXXXXXXXXXXXX&card_exp_date=MMYY&transaction_amount=X.XX&...
+        userId:
+          type: string
+          description: ME login ID
+          maxLength: 32
+          example: "merchant123"
+        userPass:
+          type: string
+          description: ME login password
+          maxLength: 32
+          format: password
+          example: "password123"
+        profileId:
+          type: string
+          description: The ME gateway profile ID the record is associated with
+          maxLength: 20
+          pattern: '^[0-9]+$'
+          example: "12345678901234567890"
+        testFlag:
+          type: string
+          description: |
+            Indicates if the file is a test file or not.
+            The default value is N, but Y can be set in order to send a test file that will route to the ME simulator.
+          maxLength: 1
+          pattern: '^[YN]$'
+          default: "N"
+          enum:
+            - "Y"
+            - "N"
+          example: "N"
+
+    UploadConfirmation:
+      type: object
+      description: |
+        Upload request confirmation parameters returned on successful file upload.
+
+        Per PDF Page 4 - Upload Request Confirmation table.
+
+        **Implementation Note:** The source PDF shows userPass in this response, which is atypical
+        for API design (credentials should not be echoed in responses). This schema omits userPass
+        for security best practices. Implementers should verify actual API behavior.
+      required:
+        - respFileId
+        - profileId
+      x-parameterGroups:
+        - name: Common
+          fields:
+            - respFileId
+            - rspCode
+            - rspMessage
+        - name: When Provided
+          fields:
+            - profileId
+      properties:
+        respFileId:
+          type: string
+          description: The File ID from the processed batch. Use this ID to download the response file.
+          maxLength: 15
+          pattern: '^[0-9]+$'
+          example: "123456789012345"
+        profileId:
+          type: string
+          description: The ME gateway profile ID the record is associated with
+          maxLength: 20
+          pattern: '^[0-9]+$'
+          example: "12345678901234567890"
+        rspCode:
+          type: string
+          description: Response code (000 indicates success)
+          maxLength: 3
+          example: "000"
+        rspMessage:
+          type: string
+          description: Response message
+          maxLength: 45
+          example: "OK"
+
+    DownloadRequest:
+      type: object
+      description: |
+        Request parameters for downloading a batch response file.
+
+        Per PDF Page 6 - Download Request Parameters table.
+      required:
+        - userId
+        - userPass
+        - respFileId
+      x-parameterGroups:
+        - name: Required
+          fields:
+            - userId
+            - userPass
+            - respFileId
+        - name: Recommended
+          fields: []
+        - name: Others
+          fields: []
+      properties:
+        userId:
+          type: string
+          description: ME login ID
+          maxLength: 32
+          example: "merchant123"
+        userPass:
+          type: string
+          description: ME login password
+          maxLength: 32
+          format: password
+          example: "password123"
+        respFileId:
+          type: string
+          description: The File ID from the processed batch (returned in the upload confirmation)
+          maxLength: 15
+          pattern: '^[0-9]+$'
+          example: "123456789012345"
+
+    DownloadErrorResponse:
+      type: object
+      description: |
+        Error response for download requests. This response is only returned if an error has occurred.
+
+        Per PDF Page 6 - Download Request Confirmation table.
+        Note: "This request confirmation is only received if an error has occurred."
+      required:
+        - userId
+        - respFileId
+        - rspCode
+        - rspMessage
+      x-parameterGroups:
+        - name: Common
+          fields:
+            - rspCode
+            - rspMessage
+        - name: When Provided
+          fields:
+            - userId
+            - respFileId
+      properties:
+        userId:
+          type: string
+          description: ME login ID (echoed from request)
+          maxLength: 32
+          example: "merchant123"
+        respFileId:
+          type: string
+          description: The File ID from the processed batch (echoed from request)
+          maxLength: 15
+          pattern: '^[0-9]+$'
+          example: "123456789012345"
+        rspCode:
+          type: string
+          description: Three-digit response/error code
+          maxLength: 3
+          pattern: '^[0-9]+$'
+          example: "301"
+        rspMessage:
+          type: string
+          description: Text that accompanies the three-digit response/error code
+          maxLength: 45
+          example: "Invalid response file ID"
+
+    ErrorResponse:
+      type: object
+      description: |
+        Standard error response for general errors (authentication, system errors).
+
+        Used when the error occurs before request parameters can be validated/echoed.
+      required:
+        - rspCode
+        - rspMessage
+      x-parameterGroups:
+        - name: Common
+          fields:
+            - rspCode
+            - rspMessage
+      properties:
+        rspCode:
+          type: string
+          description: |
+            Three-digit response/error code.
+
+            **Error Codes (per PDF Page 9):**
+            | Code | Description | Required Action |
+            |------|-------------|-----------------|
+            | 000 | OK | Batch was successfully received |
+            | 001 | System Error | Contact ME for research and resolution |
+            | 002 | Authentication Error | Invalid access right or invalid user ID and/or user password |
+            | 003 | Invalid Parameter | Check format to correct the invalid parameter |
+            | 004 | Missing parameter | Check format for missing parameter |
+            | 300 | Invalid Profile ID | Verify Profile ID is correct and resend batch |
+            | 301 | Invalid response file ID | Verify that user ID, user password, and file ID are valid and retry |
+            | 302 | Invalid test flag | Valid values are Y and N, default is N, field not required |
+            | 303 | Batch processing not allowed | Contact ME, batch processing must be enabled for the profile ID used |
+          maxLength: 3
+          pattern: '^[0-9]+$'
+          enum:
+            - "000"
+            - "001"
+            - "002"
+            - "003"
+            - "004"
+            - "300"
+            - "301"
+            - "302"
+            - "303"
+          example: "001"
+        rspMessage:
+          type: string
+          description: Text that accompanies the three-digit response/error code
+          maxLength: 45
+          example: "System Error"
+
+tags:
+  - name: Batch Upload
+    description: Operations for uploading batch transaction files
+  - name: Batch Download
+    description: Operations for downloading batch response files
+
+x-document-info:
+  original-document: ME_Batch_Processing_APISpec_March2024.pdf
+  publication-date: March 2024
+  version: '3.0'
+  conversion-notes: |
+    **Issues identified and addressed in this conversion:**
+
+    1. **UploadConfirmation schema (PDF Page 4):** The source PDF shows userPass as a required
+       response field. This is atypical for secure API design (credentials should not be echoed
+       in responses). This conversion omits userPass from the confirmation response for security
+       best practices. Implementers should verify actual API behavior.
+
+    2. **Download error responses:** The PDF specifies that the Download Request Confirmation
+       (with userId, respFileId, rspCode, rspMessage) is "only received if an error has occurred."
+       This conversion uses separate schemas:
+       - DownloadErrorResponse: For 400 errors where request params can be echoed
+       - ErrorResponse: For 401/500 errors where echoing params may not be appropriate
+
+    3. **Response file example (PDF Page 8):** The sample shows truncated field values. The
+       auth_response_text value appears to show "Match" which is likely display artifact.
+       This conversion uses "Approved" as a more typical authorization response value.
+
+    4. **Tags:** Split into "Batch Upload" and "Batch Download" for clearer API organization
+       rather than single "Batch Processing" tag.
+
+    5. **Error code mapping to HTTP status:** Added 403 Forbidden for error code 303
+       (batch processing not allowed) as this better represents the semantic meaning.
+  version-history:
+    - date: October 2017
+      version: '1.0'
+      changes: New document
+    - date: November 2019
+      version: '2.0'
+      changes: Applied current MeS-branded template to the document
+    - date: May 2022
+      version: '3.0'
+      changes: |
+        Company Information: Updated statement on page ii to include KeyBank; removed mention of SDK libraries in Related Documentation section on page 1.
+        Branding: Applied current ME-branded template to the document.
+    - date: April 2023
+      changes: |
+        Switched to monthly updates.
+        Revised template.
+
+x-email-notifications:
+  file-received:
+    from: mesPGbatchprocessing@merchante-solutions.com
+    subject: ME Payment Gateway Batch File processing was received
+    description: |
+      Email sent upon successful receipt of a batch. Sample content:
+
+      "ME Payment Gateway batch file processing has received and prepared your file for processing.
+      You will be receiving a second email with the response data."
+  batch-processed:
+    from: mesPGbatchprocessing@merchante-solutions.com
+    subject: ME Payment Gateway Batch File processing completed
+    description: |
+      Email sent once the batch has been processed, contains response file attachment and summary statistics.
+
+      Sample summary format:
+      - # of Transaction: 4, $ Amount: $4.00
+      - # Approved: 4, $ Approved: $4.00
+      - # Declined: 0, $ Declined: $0.00
+    summary-fields:
+      - number-of-transactions
+      - total-amount
+      - number-approved
+      - amount-approved
+      - number-declined
+      - amount-declined

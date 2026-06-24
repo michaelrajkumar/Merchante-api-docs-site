@@ -1,0 +1,1564 @@
+openapi: 3.0.3
+info:
+  title: MerchantE Sub-Merchant API
+  description: |
+    The MerchantE Sub-Merchant API provides a route for Payment Facilitators (PayFacs) to onboard new sub-merchants to their platform. 
+    
+    This is a streamlined version of the onboarding process which automatically populates many fields, requiring manual entry of far fewer fields in the application. The issuance of a sub-merchant MID is quickly accomplished following the standard risk assessment procedure.
+    
+    MerchantE offers two options for PayFacs depending on the underwriting provider:
+    - **PayFac-as-a-Service (PaaS)**: MerchantE underwrites the transactions and acts as the payment processor
+    - **Wholesale PayFac (WP)**: The Payment Facilitator provides outside underwriting, normally done in conjunction with a sponsor bank
+    
+    **Important Notes:**
+    - Auth token is valid for 24 hours
+    - File attachment size limit: 100 MB
+    - Updates to applications in "Pending Underwriting" or "Closed Won" stages are not allowed
+    - All timestamps are in ISO 8601 format
+    
+    **Documentation Resources:**
+    - Technical documentation and SDK libraries: https://developer.merchante.com
+    - PCI Security Standards Council: https://www.pcisecuritystandards.org/
+    - NAICS lookup: https://www.census.gov/econ/isp/
+  version: 1.0.0
+  contact:
+    name: MerchantE Partner Support
+    url: https://www.merchante.com
+  x-logo:
+    url: 'https://www.merchante.com/logo.png'
+    altText: MerchantE Logo
+
+servers:
+  - url: https://test.salesforce.com
+    description: Certification/Sandbox Authentication Server
+  - url: https://merchante-solutions--cert.my.salesforce.com
+    description: Certification API Server (use instance_url from auth response)
+
+tags:
+  - name: Authentication
+    description: OAuth 2.0 authentication endpoints
+  - name: Applications
+    description: Create and update sub-merchant applications
+  - name: Attachments
+    description: Upload supporting documents
+  - name: Status
+    description: Check application status
+
+security:
+  - OAuth2: []
+
+paths:
+  /services/oauth2/token:
+    post:
+      tags:
+        - Authentication
+      summary: Get OAuth 2.0 Access Token
+      description: |
+        Generate an access token for API authentication. The token is valid for 24 hours.
+        
+        **Authentication Flow:**
+        1. Send credentials to this endpoint to receive access_token
+        2. Use access_token as Bearer token (Type: OAUTH 2.0) in Authorization header for all subsequent requests
+        3. Token expires after 24 hours - obtain new token when expired
+        
+        **Note:** The request URL depends on the environment:
+        - Production: https://login.salesforce.com/services/oauth2/token
+        - Certification: https://test.salesforce.com/services/oauth2/token
+      operationId: getAuthToken
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              required:
+                - grant_type
+                - client_id
+                - client_secret
+                - username
+                - password
+              x-parameterGroups:
+                - name: Required
+                  fields:
+                    - grant_type
+                    - client_id
+                    - client_secret
+                    - username
+                    - password
+              properties:
+                grant_type:
+                  type: string
+                  enum:
+                    - password
+                  description: OAuth 2.0 grant type - must be literal "password" text
+                  example: "password"
+                client_id:
+                  type: string
+                  description: Client ID provided by MerchantE (different for each sandbox/org)
+                  example: "xxxXXXXX"
+                client_secret:
+                  type: string
+                  format: password
+                  description: Client secret provided by MerchantE (different for each sandbox/org)
+                  example: "xxxXXX"
+                username:
+                  type: string
+                  description: API username provided by MerchantE (different for each sandbox/org)
+                  example: "partnerportalapi@merchante.com.cert"
+                password:
+                  type: string
+                  format: password
+                  description: Password concatenated with Security Token ({{Password+Security_Token}}). Security Token is not always required depending on org configuration.
+            example:
+              grant_type: "password"
+              client_id: "xxxXXXXX"
+              client_secret: "xxxXXX"
+              username: "partnerportalapi@merchante.com.cert"
+              password: "xxx"
+      responses:
+        '200':
+          description: Successfully authenticated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthTokenResponse'
+              example:
+                access_token: "your_access_token_here"
+                instance_url: "https://merchante-solutions--cert.my.salesforce.com"
+                id: "https://test.salesforce.com/id/00D010000004dsTEAQ/00501000002KdrmAAC"
+                token_type: "Bearer"
+                issued_at: "1649432850703"
+                signature: "Z1lxdqcdfOZMCjuICOTjYYbmklGrYE9xbYn5ZJ/BjNA="
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /services/apexrest/merchant-application-payfac/:
+    post:
+      tags:
+        - Applications
+      summary: Create or Update Sub-Merchant Application
+      description: |
+        Create a new sub-merchant application or update an existing one. Both create and update operations use POST method.
+        
+        **For Create Operations:**
+        - Omit the `Id` field from Opp and Mer objects
+        - All required fields must be provided
+        - At least one Primary Contact/Beneficial Owner must be identified
+        
+        **For Update Operations:**
+        - Include the `Id` field (Opportunity SFID) in the Opp object
+        - Include the `Id` field (Account SFID) in the Mer object
+        - Source ID can be used to relate SFID to corresponding fields
+        - Updates to applications in "Pending Underwriting" or "Closed Won" stages are NOT allowed
+        
+        **Important Guidelines:**
+        - Contact/Beneficial Owner fields required based on Legal Entity Type/Ownership
+        - Set `Is_ME_Underwriting__c` to indicate underwriting type:
+          - `true`: MerchantE is underwriting (PayFac-as-a-Service)
+          - `false`: External underwriter (Wholesale PayFac)
+        
+        **Data Sections:**
+        - Merchant Information (Mer)
+        - Checking Account (lstbussCheckAcc - can have multiple with different DDA Types)
+        - Beneficial Owners (lstContact)
+        - Transaction Payment Options (Opp)
+        
+        **Validation Notes:**
+        - Phone numbers must be 10 digits or (999) 999-9999 format
+        - ZIP codes must be 5 digits
+        - Federal Tax ID must be 9 digits
+        - SSN must be 9 digits
+        - Transit Routing Number must be 9 digits
+        
+        **Note:** The host may be different for each organization. Use instance_url from Authorization Token response.
+      operationId: createOrUpdateApplication
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ApplicationRequest'
+            examples:
+              createApplication:
+                summary: Create New Application
+                description: Example request to create a new sub-merchant application
+                value:
+                  Opp:
+                    attributes:
+                      type: "Opportunity"
+                    Is_ME_Underwriting__c: true
+                  Mer:
+                    attributes:
+                      type: "Account"
+                    Association_ID_API_Field__c: "3941803045"
+                    Legal_Name__c: "test legal name 1111"
+                    Tax_ID__c: "333333333"
+                    State_of_Entity_Formation_Incorporation__c: "CA"
+                    Name: "Test Account"
+                    BillingStreet: "123 test"
+                    BillingCity: "San Jose"
+                    BillingState: "California"
+                    BillingPostalCode: "99999"
+                    BillingCountry: "united states"
+                    Phone: "(444) 555-6666"
+                    App_Email__c: "test@mes.com"
+                    Website: "www.mes.com"
+                    Customer_Service_Phone__c: "888-888-8888"
+                    Industry: "Retail"
+                    Industry_other__c: "test other"
+                    Location_Type__c: "Ecommerce"
+                    Location_Other__c: "test other"
+                    Ownership: "Government"
+                    Years_at_Location__c: "3"
+                    Date_Established__c: "2000-12-10"
+                    Chain_Non_Chain__c: "Single Outlet"
+                    Description: "Test description"
+                    MCC_API_Field__c: "5045"
+                    Ever_accepted_credit_cards_before__c: true
+                    Ever_had_a_merchant_account_canceled__c: true
+                  lstbussCheckAcc:
+                    - attributes:
+                        type: "Business_Checking_Account__c"
+                      Bank_Name__c: "Wells Fargo"
+                      Bank_Street_Address__c: "First street"
+                      Bank_City__c: "San Francisco"
+                      Bank_State__c: "California"
+                      Bank_Zipcode__c: "11111"
+                      Checking_Account__c: "1212121212"
+                      Transit_Routing__c: "121233333"
+                      Years_Open__c: 4
+                      DDA_Type__c: "Chargeback"
+                      Checking_Account_Unique_Field__c: "111"
+                    - attributes:
+                        type: "Business_Checking_Account__c"
+                      Bank_Name__c: "Wells Fargo"
+                      Bank_Street_Address__c: "First street"
+                      Bank_City__c: "San Francisco"
+                      Bank_State__c: "California"
+                      Bank_Zipcode__c: "11111"
+                      Checking_Account__c: "1212121222"
+                      Transit_Routing__c: "121212121"
+                      Years_Open__c: 4
+                      DDA_Type__c: "fees;Deposit"
+                      Checking_Account_Unique_Field__c: "222"
+              updateApplication:
+                summary: Update Existing Application
+                description: Example request to update an existing sub-merchant application
+                value:
+                  Opp:
+                    attributes:
+                      type: "Opportunity"
+                    Id: "0068L000008IybaQAC"
+                    Is_ME_Underwriting__c: true
+                  Mer:
+                    attributes:
+                      type: "Account"
+                    Id: "0018L00000E6XysQAF"
+                    Legal_Name__c: "test legal name 1111"
+                    Tax_ID__c: "333333333"
+                    State_of_Entity_Formation_Incorporation__c: "CA"
+                    Name: "Test Account"
+                    BillingStreet: "123 test"
+                    BillingCity: "San Jose"
+                    BillingState: "California"
+                    BillingPostalCode: "99999"
+                    BillingCountry: "united states"
+                    Phone: "(444) 555-6666"
+                    App_Email__c: "test@mes.com"
+                    Website: "www.mes.com"
+                    Customer_Service_Phone__c: "888-888-8888"
+                    Industry: "Retail"
+                    Industry_other__c: "test other"
+                    Location_Type__c: "Ecommerce"
+                    Location_Other__c: "test other"
+                    Ownership: "Government"
+                    Years_at_Location__c: "3"
+                    Date_Established__c: "2000-12-10"
+                    Chain_Non_Chain__c: "Single Outlet"
+                    Description: "Test description"
+                    MCC_API_Field__c: "5045"
+                    Ever_accepted_credit_cards_before__c: true
+                    Ever_had_a_merchant_account_canceled__c: true
+      responses:
+        '200':
+          description: Application created or updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApplicationResponse'
+              examples:
+                createResponse:
+                  summary: Create Application Response
+                  description: Response after successfully creating a new application
+                  value:
+                    - Success: true
+                      SourceId: null
+                      SFId: "0018L00000E6XysQAF"
+                      ObjectType: "Account"
+                      Message: "Merchant Information Created Successfully."
+                    - Success: true
+                      SourceId: null
+                      SFId: "0068L000008IybaQAC"
+                      ObjectType: "Opportunity"
+                      Message: "Transaction/Payment Options Created Successfully."
+                    - Success: true
+                      SourceId: null
+                      SFId: "0Q08L000000HKx0SAG"
+                      ObjectType: "Quote"
+                      Message: "Record Created Successfully."
+                    - Success: true
+                      SourceId: null
+                      SFId: "0QL8L000000HPMWWA4"
+                      ObjectType: "QuoteLineItem"
+                      Message: "Solution & Fees Created Successfully."
+                updateResponse:
+                  summary: Update Application Response
+                  description: Response after successfully updating an existing application
+                  value:
+                    - Success: true
+                      SourceId: null
+                      SFId: "0018L00000E6XysQAF"
+                      ObjectType: "Account"
+                      Message: "Merchant Information Updated Successfully."
+                    - Success: true
+                      SourceId: null
+                      SFId: "0068L000008IybaQAC"
+                      ObjectType: "Opportunity"
+                      Message: "Transaction/Payment Options Updated Successfully."
+                    - Success: true
+                      SourceId: null
+                      SFId: "0Q08L000000HKx0SAG"
+                      ObjectType: "Quote"
+                      Message: "Record Updated Successfully."
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          description: Update not allowed (application in Pending Underwriting or Closed Won stage)
+        '404':
+          description: Application not found (for update operations)
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /services/data/v54.0/composite/tree/Attachment:
+    post:
+      tags:
+        - Attachments
+      summary: Upload Attachments
+      description: |
+        Upload supporting documents for a sub-merchant application.
+        
+        **Requirements:**
+        - Opportunity ID is required (ParentId field)
+        - Files must be Base64 encoded
+        - Maximum file size: 100 MB per file
+        
+        **Supported File Types:**
+        - PDF documents
+        - Images (JPEG, PNG, etc.)
+        - Text files
+        
+        **Process:**
+        1. Convert file to Base64
+        2. Include ParentId (Opportunity ID from create response)
+        3. Provide descriptive file name with extension
+      operationId: createAttachment
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AttachmentRequest'
+            example:
+              records:
+                - attributes:
+                    type: "Attachment"
+                    referenceId: "attachment0"
+                  ParentId: "00600000011111XXX"
+                  Name: "File.pdf"
+                  body: "base64Coded"
+                - attributes:
+                    type: "Attachment"
+                    referenceId: "attachment1"
+                  ParentId: "00100000011111XXX"
+                  Name: "TestTXTFIle.txt"
+                  body: "base64Coded"
+      responses:
+        '200':
+          description: Attachments uploaded successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AttachmentResponse'
+              example:
+                hasErrors: false
+                results:
+                  - referenceId: "attachment0"
+                    id: "00P8L000000qsJKUAY"
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '413':
+          description: File size exceeds 100 MB limit
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /services/apexrest/merchant-application-status/{opportunityId}:
+    get:
+      tags:
+        - Status
+      summary: Get Application Status
+      description: |
+        Retrieve the current status of a sub-merchant application using the Opportunity ID from the create/update response.
+        
+        **Response Varies By Type:**
+        - **Wholesale PayFac**: Returns integration status and MID
+        - **PayFac as a Service**: Returns detailed underwriting information including status, reason codes, timestamps, and AEX document IDs
+        
+        **Status Fields:**
+        - Integration_Status__c: Success/Failed status
+        - Integration_Message__c: Error details if failed
+        - Integration_Failure_Stage__c: Stage where integration failed
+        - MID__c: Merchant ID when approved
+        - Underwriting_Status__c: Current underwriting state (PaaS only)
+        
+        **Note:** Use the access_token in the Authorization section of the request.
+      operationId: getApplicationStatus
+      x-parameterGroups:
+        - name: Required
+          fields:
+            - opportunityId
+      parameters:
+        - name: opportunityId
+          in: path
+          required: true
+          description: The Salesforce Opportunity ID (SFID) from the create/update response
+          schema:
+            type: string
+            pattern: '^[a-zA-Z0-9]{15,18}$'
+          example: "0065900000KPVt2AAH"
+      responses:
+        '200':
+          description: Application status retrieved successfully
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: '#/components/schemas/WholesalePayFacStatusResponse'
+                  - $ref: '#/components/schemas/PaaSStatusResponse'
+              examples:
+                wholesalePayFac:
+                  summary: Wholesale PayFac Response
+                  value:
+                    Integration_Failure_Stage__c: "Error generating AppSeq"
+                    Integration_Message__c: null
+                    Integration_Status__c: "Failed"
+                    MID__c: "14471729"
+                    Id: "0065900000KPVt2AAH"
+                payFacAsService:
+                  summary: PayFac as a Service Response
+                  value:
+                    UW_Time_to_Approve_Decline__c: null
+                    Underwriting_Approval_Date_Timestamp__c: null
+                    Underwriting_Submission_Date_Timestamp__c: null
+                    Underwriting_Submission_Date__c: null
+                    Underwriting_Reason_Details__c: null
+                    Underwriting_Reason_Code__c: null
+                    Underwriter_Name__c: null
+                    Change_Notes__c: null
+                    AEX_Short_ID__c: null
+                    AEX_Document_ID__c: null
+                    Underwriting_Status__c: null
+                    Integration_Failure_Stage__c: null
+                    Integration_Message__c: null
+                    Integration_Status__c: "Failed"
+                    MID__c: "14471729"
+                    Id: "0065900000JzHFdAAN"
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          description: Application not found
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+components:
+  securitySchemes:
+    OAuth2:
+      type: oauth2
+      description: OAuth 2.0 authentication with password grant. Use Type "OAUTH 2.0" with the authorization header.
+      flows:
+        password:
+          tokenUrl: /services/oauth2/token
+          scopes: {}
+
+  schemas:
+    AuthTokenResponse:
+      type: object
+      required:
+        - access_token
+        - instance_url
+        - id
+        - token_type
+        - issued_at
+        - signature
+      x-parameterGroups:
+        - name: Common
+          fields:
+            - access_token
+            - instance_url
+            - token_type
+        - name: When Provided
+          fields:
+            - id
+            - issued_at
+            - signature
+      properties:
+        access_token:
+          type: string
+          description: Bearer token for API authentication (valid for 24 hours)
+        instance_url:
+          type: string
+          format: uri
+          description: Base URL for all subsequent API calls. Use this URL as the host for create/update/status requests.
+        id:
+          type: string
+          format: uri
+          description: Identity URL for the authenticated user
+        token_type:
+          type: string
+          enum:
+            - Bearer
+          description: Token type (always "Bearer")
+        issued_at:
+          type: string
+          description: Unix timestamp (milliseconds) when token was issued
+        signature:
+          type: string
+          description: HMAC-SHA256 signature for token validation
+
+    ApplicationRequest:
+      type: object
+      required:
+        - Opp
+        - Mer
+      x-parameterGroups:
+        - name: Required
+          fields:
+            - Opp
+            - Mer
+            - lstContact
+          description: Core application components - Opportunity details, Merchant information, and at least one Beneficial Owner/Contact
+        - name: Recommended
+          fields:
+            - lstbussCheckAcc
+          description: Business checking account information for deposit processing
+        - name: Others
+          fields: []
+          description: Additional optional fields
+      properties:
+        Opp:
+          $ref: '#/components/schemas/Opportunity'
+        Mer:
+          $ref: '#/components/schemas/Account'
+        lstbussCheckAcc:
+          type: array
+          description: List of business checking accounts (supports multiple accounts with different DDA types)
+          items:
+            $ref: '#/components/schemas/BusinessCheckingAccount'
+        lstContact:
+          type: array
+          description: List of beneficial owners and contacts
+          items:
+            $ref: '#/components/schemas/Contact'
+
+    Opportunity:
+      type: object
+      required:
+        - attributes
+        - Is_ME_Underwriting__c
+      properties:
+        attributes:
+          type: object
+          required:
+            - type
+          properties:
+            type:
+              type: string
+              enum:
+                - Opportunity
+        Id:
+          type: string
+          description: Salesforce Opportunity ID (required for update operations, omit for create)
+          pattern: '^[a-zA-Z0-9]{15,18}$'
+        Is_ME_Underwriting__c:
+          type: boolean
+          description: |
+            Indicates underwriting type:
+            - true: MerchantE is underwriting (PayFac-as-a-Service)
+            - false: External underwriter (Wholesale PayFac)
+        High_Monthly_Volume__c:
+          type: number
+          format: double
+          description: High monthly processing volume (optional)
+          minimum: 0
+        Avg_Ticket__c:
+          type: number
+          format: double
+          description: Average transaction amount (formula/calculated field)
+          readOnly: true
+        High_Ticket__c:
+          type: number
+          format: double
+          description: Highest single transaction amount (optional)
+          minimum: 0
+        Visa_MC_Discover_Volume__c:
+          type: number
+          format: double
+          description: Monthly volume for Visa/MC/Discover (optional)
+          minimum: 0
+        Days_to_Ship_Deliver__c:
+          type: string
+          description: Delivery timeframe (optional, picklist)
+          maxLength: 255
+        Refund_Policy__c:
+          type: string
+          description: Merchant's refund policy (optional, picklist)
+          maxLength: 255
+      x-parameterGroups:
+        - name: Required
+          fields:
+            - attributes
+            - Is_ME_Underwriting__c
+          description: Core fields required for all applications
+        - name: Recommended
+          fields:
+            - High_Monthly_Volume__c
+            - High_Ticket__c
+            - Visa_MC_Discover_Volume__c
+          description: Transaction volume information helps with accurate underwriting
+        - name: Others
+          fields:
+            - Id
+            - Avg_Ticket__c
+            - Days_to_Ship_Deliver__c
+            - Refund_Policy__c
+          description: Optional fields for updates and additional business details
+
+    Account:
+      type: object
+      description: |
+        Merchant Information object. Contains demographic information about the merchant.
+        
+        **Required fields for both Wholesale PayFac (WP) and PayFac-as-a-Service (PaaS).**
+      required:
+        - attributes
+        - Association_ID_API_Field__c
+        - Legal_Name__c
+        - Tax_ID__c
+        - State_of_Entity_Formation_Incorporation__c
+        - Name
+        - BillingStreet
+        - BillingCity
+        - BillingState
+        - BillingPostalCode
+        - BillingCountry
+        - Phone
+        - App_Email__c
+        - Website
+        - Customer_Service_Phone__c
+        - Industry
+        - Location_Type__c
+        - Ownership
+        - Years_at_Location__c
+        - Date_Established__c
+        - Chain_Non_Chain__c
+        - Description
+        - MCC_API_Field__c
+        - Ever_accepted_credit_cards_before__c
+        - Ever_had_a_merchant_account_canceled__c
+      properties:
+        attributes:
+          type: object
+          required:
+            - type
+          properties:
+            type:
+              type: string
+              enum:
+                - Account
+        Id:
+          type: string
+          description: Salesforce Account ID (required for update operations, omit for create)
+          pattern: '^[a-zA-Z0-9]{15,18}$'
+        Association_ID_API_Field__c:
+          type: string
+          description: Association ID for the PayFac account (10 characters)
+          maxLength: 10
+          example: "3941803045"
+        Legal_Name__c:
+          type: string
+          description: Legal business name
+          maxLength: 100
+          minLength: 1
+        Tax_ID__c:
+          type: string
+          description: Federal Tax ID (EIN) - 9 digits, no hyphens
+          maxLength: 16
+          pattern: '^\d{9}$'
+          example: "333333333"
+        State_of_Entity_Formation_Incorporation__c:
+          type: string
+          description: State where business was formed/incorporated (picklist)
+        Name:
+          type: string
+          description: Merchant DBA (Doing Business As) name / Account Name
+          maxLength: 255
+          minLength: 1
+        BillingStreet:
+          type: string
+          description: Legal street address
+          maxLength: 255
+        BillingCity:
+          type: string
+          description: Legal city
+          maxLength: 40
+        BillingState:
+          type: string
+          description: Legal state/province code (picklist - see Location Codes in documentation)
+          maxLength: 80
+        BillingPostalCode:
+          type: string
+          description: Legal ZIP/Postal code (5 digits for US)
+          maxLength: 20
+          pattern: '^\d{5}$'
+        BillingCountry:
+          type: string
+          description: Legal country code (picklist - see Location Codes in documentation)
+          maxLength: 80
+        Phone:
+          type: string
+          description: Business phone number (10 digits or (999) 999-9999 format)
+          pattern: '^(\d{10}|\(\d{3}\) \d{3}-\d{4})$'
+          example: "(444) 555-6666"
+        App_Email__c:
+          type: string
+          format: email
+          description: Application email address
+          maxLength: 100
+        Website:
+          type: string
+          format: uri
+          description: Business website URL
+          maxLength: 255
+        Customer_Service_Phone__c:
+          type: string
+          description: Customer service phone number (10 digits or (999) 999-9999 format)
+          pattern: '^(\d{10}|\(\d{3}\) \d{3}-\d{4})$'
+        Industry:
+          type: string
+          description: Business industry classification (picklist)
+          maxLength: 255
+        Industry_other__c:
+          type: string
+          description: Other industry description (if Industry is "Other")
+          maxLength: 100
+        Location_Type__c:
+          type: string
+          description: Type of business location (picklist)
+          maxLength: 255
+        Location_Other__c:
+          type: string
+          description: Other location type description
+          maxLength: 255
+        Ownership:
+          type: string
+          description: |
+            Legal entity type (picklist). Determines required fields for Beneficial Owners:
+            - **Sole Proprietorship**: Sole Owner (principal) - only 1 allowed
+            - **Partnership, LLC, Privately Held Corporation**: Any owner with 25%+ ownership AND Controlling Authority
+            - **Tax Exempt**: Controlling Authority only
+            - **Government**: Controlling Authority only (Federal, State, Local)
+            - **Publicly Traded Corporation**: Controlling Authority only
+            - **Financial Institution**: Controlling Authority only
+          enum:
+            - Sole Proprietorship
+            - Partnership
+            - Limited Liability Company
+            - Privately Held Corporation
+            - Tax Exempt
+            - Government
+            - Publicly Traded Corporation
+            - Financial Institution
+        Years_at_Location__c:
+          type: string
+          description: Number of years at current location
+          maxLength: 4
+        Date_Established__c:
+          type: string
+          format: date
+          description: Date business was established (YYYY-MM-DD)
+        Chain_Non_Chain__c:
+          type: string
+          description: Chain classification (picklist)
+          maxLength: 255
+        Description:
+          type: string
+          description: Business description and operations
+          maxLength: 32000
+        MCC_API_Field__c:
+          type: string
+          description: Merchant Category Code (MCC) lookup ID
+          maxLength: 100
+        Ever_accepted_credit_cards_before__c:
+          type: boolean
+          description: Has business accepted credit cards before?
+        Ever_had_a_merchant_account_canceled__c:
+          type: boolean
+          description: Has business ever had a merchant account canceled?
+        BET_Table_ID_API_Field__c:
+          type: string
+          description: BET Table lookup ID (optional)
+          maxLength: 255
+        Association_ID__c:
+          type: string
+          description: Association ID lookup (optional)
+          maxLength: 18
+        Sponsorship__c:
+          type: string
+          description: Sponsoring bank (optional, picklist)
+          enum:
+            - KeyBank
+            - Synovus
+            - Fresno First
+          default: KeyBank
+      x-parameterGroups:
+        - name: Required
+          fields:
+            - attributes
+            - Association_ID_API_Field__c
+            - Legal_Name__c
+            - Tax_ID__c
+            - State_of_Entity_Formation_Incorporation__c
+            - Name
+            - BillingStreet
+            - BillingCity
+            - BillingState
+            - BillingPostalCode
+            - BillingCountry
+            - Phone
+            - App_Email__c
+            - Website
+            - Customer_Service_Phone__c
+            - Industry
+            - Location_Type__c
+            - Ownership
+            - Years_at_Location__c
+            - Date_Established__c
+            - Chain_Non_Chain__c
+            - Description
+            - MCC_API_Field__c
+            - Ever_accepted_credit_cards_before__c
+            - Ever_had_a_merchant_account_canceled__c
+          description: Core merchant information required for all applications
+        - name: Recommended
+          fields:
+            - Industry_other__c
+            - Location_Other__c
+          description: Required when Industry or Location_Type is set to "Other"
+        - name: Others
+          fields:
+            - Id
+            - BET_Table_ID_API_Field__c
+            - Association_ID__c
+            - Sponsorship__c
+          description: Optional fields for updates and advanced configuration
+
+    BusinessCheckingAccount:
+      type: object
+      description: |
+        Business Checking Account information.
+        
+        **DDA Type Rules:**
+        - Only one Deposit Type account allowed per application
+        - Only one Chargeback Type account allowed per application
+        - Only one Fee Type account allowed per application
+        - Multiple types can be assigned to a single account using semicolon separator (e.g., "fees;Deposit")
+      required:
+        - attributes
+        - Bank_Name__c
+        - Bank_Street_Address__c
+        - Bank_City__c
+        - Bank_State__c
+        - Bank_Zipcode__c
+        - Checking_Account__c
+        - Transit_Routing__c
+        - Years_Open__c
+        - DDA_Type__c
+      properties:
+        attributes:
+          type: object
+          required:
+            - type
+          properties:
+            type:
+              type: string
+              enum:
+                - Business_Checking_Account__c
+        Bank_Name__c:
+          type: string
+          description: Name of the bank
+          maxLength: 255
+        Bank_Street_Address__c:
+          type: string
+          description: Bank street address
+          maxLength: 255
+        Bank_City__c:
+          type: string
+          description: Bank city
+          maxLength: 100
+        Bank_State__c:
+          type: string
+          description: Bank state (2-letter code or full state name)
+          maxLength: 100
+          enum:
+            - AK
+            - AL
+            - AR
+            - AZ
+            - CA
+            - CO
+            - CT
+            - DC
+            - DE
+            - FL
+            - GA
+            - HI
+            - IA
+            - ID
+            - IL
+            - IN
+            - KS
+            - KY
+            - LA
+            - MA
+            - MD
+            - ME
+            - MI
+            - MN
+            - MO
+            - MS
+            - MT
+            - NC
+            - ND
+            - NE
+            - NH
+            - NJ
+            - NM
+            - NV
+            - NY
+            - OH
+            - OK
+            - OR
+            - PA
+            - PR
+            - RI
+            - SC
+            - SD
+            - TN
+            - TX
+            - UT
+            - VA
+            - VT
+            - WA
+            - WI
+            - WV
+            - WY
+        Bank_Zipcode__c:
+          type: string
+          description: Bank ZIP code
+          maxLength: 20
+        Checking_Account__c:
+          type: string
+          description: Bank checking account number
+          maxLength: 100
+        Transit_Routing__c:
+          type: string
+          description: Bank transit routing number (9 digits)
+          maxLength: 100
+          pattern: '^\d{9}$'
+        Years_Open__c:
+          type: integer
+          description: Number of years account has been open
+          minimum: 0
+        DDA_Type__c:
+          type: string
+          description: |
+            Account type - Multi-picklist with values: Deposit, Chargeback, Fees.
+            Multiple values can be specified with semicolon separator (e.g., "fees;Deposit").
+            Only one of each type allowed per application.
+          maxLength: 4099
+          example: "Deposit"
+        Checking_Account_Unique_Field__c:
+          type: string
+          description: Unique identifier for multiple checking accounts in same request. Used in response SourceId to identify which account the response refers to.
+          maxLength: 3
+      x-parameterGroups:
+        - name: Required
+          fields:
+            - attributes
+            - Bank_Name__c
+            - Bank_Street_Address__c
+            - Bank_City__c
+            - Bank_State__c
+            - Bank_Zipcode__c
+            - Checking_Account__c
+            - Transit_Routing__c
+            - Years_Open__c
+            - DDA_Type__c
+          description: All bank account information is required. Only one account of each DDA type allowed per application.
+        - name: Others
+          fields:
+            - Checking_Account_Unique_Field__c
+          description: Unique identifier required when submitting multiple checking accounts in a single request
+
+    Contact:
+      type: object
+      description: |
+        Beneficial Owner / Contact information.
+        
+        **Contact Roles:**
+        - **Owner (Ownership Prong)**: Individual with 25%+ equity interest
+        - **Controlling Authority (Control Prong)**: Single individual managing the merchant (only one allowed)
+        - **Signing Authority**: Can be owner or controlling authority
+        - **Principal**: Combines owner and control prong
+        
+        **Validation Rules:**
+        - Only one Control Prong allowed per application
+        - Only one Authorized Signer allowed per application
+        - Maximum 4 Principals allowed per application
+        - Only 1 Principal allowed for Sole Proprietorship
+        - Principal must own 25% or more
+        - Sum of % Owned should not exceed 100%
+        - % Owned not allowed for non-Principal roles
+        
+        **Required fields vary by Business Entity Type (Ownership on Account).**
+      required:
+        - attributes
+        - FirstName
+        - LastName
+        - Email
+        - Date_of_Birth__c
+        - MailingStreet
+        - MailingCity
+        - MailingStateCode
+        - MailingPostalCode
+        - MailingCountryCode
+        - SSN__c
+        - Contact_Role__c
+        - Percentage_Owned__c
+        - Title
+      properties:
+        attributes:
+          type: object
+          required:
+            - type
+          properties:
+            type:
+              type: string
+              enum:
+                - Contact
+        FirstName:
+          type: string
+          description: Contact first name
+          maxLength: 40
+        LastName:
+          type: string
+          description: Contact last name
+          maxLength: 80
+        Title:
+          type: string
+          description: Contact title/position (e.g., CEO, CFO, President)
+          maxLength: 128
+        Phone:
+          type: string
+          description: Contact phone number (10 digits or (999) 999-9999 format)
+          pattern: '^(\d{10}|\(\d{3}\) \d{3}-\d{4})$'
+        Email:
+          type: string
+          format: email
+          description: Contact email address
+          maxLength: 80
+        Date_of_Birth__c:
+          type: string
+          format: date
+          description: Date of birth (YYYY-MM-DD)
+        MailingStreet:
+          type: string
+          description: Mailing street address
+          maxLength: 255
+        MailingCity:
+          type: string
+          description: Mailing city
+          maxLength: 40
+        MailingStateCode:
+          type: string
+          description: Mailing state/province code
+          maxLength: 80
+        MailingPostalCode:
+          type: string
+          description: Mailing ZIP/Postal code
+          maxLength: 20
+        MailingCountryCode:
+          type: string
+          description: Mailing country code (picklist)
+          maxLength: 10
+        SSN__c:
+          type: string
+          description: Social Security Number (9 digits, no hyphens)
+          maxLength: 9
+          pattern: '^\d{9}$'
+        Contact_Role__c:
+          type: string
+          description: |
+            Contact role(s) - Multi-picklist. Multiple roles can be specified with semicolon separator.
+            Values: Principal, Control Prong, Authorized Signer, etc.
+          maxLength: 4099
+        Percentage_Owned__c:
+          type: number
+          format: double
+          description: |
+            Percentage ownership. Required if Contact_Role__c includes "Principal".
+            Must be 25% or greater for Principal role.
+            Sum of all percentages cannot exceed 100%.
+            Not allowed for non-Principal roles.
+          minimum: 0
+          maximum: 100
+        Beneficial_Owner_Unique_Field__c:
+          type: string
+          description: Unique identifier for multiple contacts in same request. Used in response SourceId to identify which contact the response refers to.
+      x-parameterGroups:
+        - name: Required
+          fields:
+            - attributes
+            - FirstName
+            - LastName
+            - Email
+            - Date_of_Birth__c
+            - MailingStreet
+            - MailingCity
+            - MailingStateCode
+            - MailingPostalCode
+            - MailingCountryCode
+            - SSN__c
+            - Contact_Role__c
+            - Percentage_Owned__c
+            - Title
+          description: All contact information required. At least one Principal or Control Prong required based on business entity type.
+        - name: Recommended
+          fields:
+            - Phone
+          description: Contact phone number for verification and communication
+        - name: Others
+          fields:
+            - Beneficial_Owner_Unique_Field__c
+          description: Unique identifier required when submitting multiple beneficial owners in a single request
+
+    ApplicationResponse:
+      type: array
+      description: |
+        Array of response objects for each created/updated Salesforce record.
+
+        **Response Fields:**
+        - **SFId**: Salesforce ID of created/updated record (use for subsequent operations)
+        - **SourceId**: For objects with multiple instances (Contact, Business Checking Account), returns the unique field value
+        - **Success**: Boolean indicating success/failure
+        - **ObjectType**: Type of Salesforce object
+        - **Message**: Success or error message
+      items:
+        type: object
+        required:
+          - Success
+          - ObjectType
+          - Message
+        x-parameterGroups:
+          - name: Common
+            fields:
+              - Success
+              - SFId
+              - ObjectType
+              - Message
+          - name: When Provided
+            fields:
+              - SourceId
+        properties:
+          Success:
+            type: boolean
+            description: Indicates if the operation was successful
+          SourceId:
+            type: string
+            nullable: true
+            description: |
+              Unique identifier for objects with multiple instances:
+              - For Contact: value of Beneficial_Owner_Unique_Field__c
+              - For Business Checking Account: value of Checking_Account_Unique_Field__c
+              - null for single-instance objects
+          SFId:
+            type: string
+            description: Salesforce ID of the created/updated record
+            pattern: '^[a-zA-Z0-9]{15,18}$'
+          ObjectType:
+            type: string
+            description: Type of Salesforce object
+            enum:
+              - Account
+              - Opportunity
+              - Contact
+              - Business_Checking_Account__c
+              - Quote
+              - QuoteLineItem
+          Message:
+            type: string
+            description: Success or error message
+
+    AttachmentRequest:
+      type: object
+      required:
+        - records
+      x-parameterGroups:
+        - name: Required
+          fields:
+            - records
+      properties:
+        records:
+          type: array
+          description: Array of attachment records to upload
+          minItems: 1
+          items:
+            type: object
+            required:
+              - attributes
+              - ParentId
+              - Name
+              - body
+            properties:
+              attributes:
+                type: object
+                required:
+                  - type
+                  - referenceId
+                properties:
+                  type:
+                    type: string
+                    enum:
+                      - Attachment
+                  referenceId:
+                    type: string
+                    description: Unique reference ID for this attachment in the request (e.g., "attachment0", "attachment1")
+              ParentId:
+                type: string
+                description: Opportunity ID (SFID) to associate attachment with. Required field.
+                pattern: '^[a-zA-Z0-9]{15,18}$'
+              Name:
+                type: string
+                description: File name with extension (e.g., "File.pdf", "TestTXTFile.txt")
+              body:
+                type: string
+                format: byte
+                description: Base64-encoded file content (max 100 MB)
+
+    AttachmentResponse:
+      type: object
+      required:
+        - hasErrors
+        - results
+      x-parameterGroups:
+        - name: Common
+          fields:
+            - hasErrors
+            - results
+      properties:
+        hasErrors:
+          type: boolean
+          description: Indicates if any errors occurred during upload
+        results:
+          type: array
+          items:
+            type: object
+            required:
+              - referenceId
+              - id
+            properties:
+              referenceId:
+                type: string
+                description: Reference ID from request (e.g., "attachment0")
+              id:
+                type: string
+                description: Salesforce Attachment ID
+                pattern: '^[a-zA-Z0-9]{15,18}$'
+
+    WholesalePayFacStatusResponse:
+      type: object
+      description: Status response for Wholesale PayFac applications
+      required:
+        - Id
+      x-parameterGroups:
+        - name: Common
+          fields:
+            - Integration_Status__c
+            - Id
+        - name: When Provided
+          fields:
+            - MID__c
+            - Integration_Message__c
+            - Integration_Failure_Stage__c
+      properties:
+        Integration_Failure_Stage__c:
+          type: string
+          nullable: true
+          description: Stage where integration failed (e.g., "Error generating AppSeq")
+        Integration_Message__c:
+          type: string
+          nullable: true
+          description: Detailed integration error message
+        Integration_Status__c:
+          type: string
+          enum:
+            - Success
+            - Failed
+          description: Overall integration status
+        MID__c:
+          type: string
+          description: Merchant ID (assigned when approved)
+        Id:
+          type: string
+          description: Opportunity ID
+          pattern: '^[a-zA-Z0-9]{15,18}$'
+
+    PaaSStatusResponse:
+      type: object
+      description: Status response for PayFac-as-a-Service applications. Includes additional underwriting fields.
+      required:
+        - Id
+      x-parameterGroups:
+        - name: Common
+          fields:
+            - Integration_Status__c
+            - Id
+        - name: When Provided
+          fields:
+            - MID__c
+            - Underwriting_Status__c
+            - Underwriting_Approval_Date_Timestamp__c
+        - name: Other Fields
+          fields:
+            - UW_Time_to_Approve_Decline__c
+            - Underwriting_Submission_Date_Timestamp__c
+            - Underwriting_Submission_Date__c
+            - Underwriting_Reason_Details__c
+            - Underwriting_Reason_Code__c
+            - Underwriter_Name__c
+            - Change_Notes__c
+            - AEX_Short_ID__c
+            - AEX_Document_ID__c
+      properties:
+        UW_Time_to_Approve_Decline__c:
+          type: number
+          nullable: true
+          description: Time taken for underwriting decision
+        Underwriting_Approval_Date_Timestamp__c:
+          type: string
+          format: date-time
+          nullable: true
+          description: Timestamp when application was approved
+        Underwriting_Submission_Date_Timestamp__c:
+          type: string
+          format: date-time
+          nullable: true
+          description: Timestamp when application was submitted for underwriting
+        Underwriting_Submission_Date__c:
+          type: string
+          format: date
+          nullable: true
+          description: Date application was submitted
+        Underwriting_Reason_Details__c:
+          type: string
+          nullable: true
+          description: Detailed reason for underwriting decision
+        Underwriting_Reason_Code__c:
+          type: string
+          nullable: true
+          description: Code representing underwriting decision reason
+        Underwriter_Name__c:
+          type: string
+          nullable: true
+          description: Name of underwriter who processed application
+        Change_Notes__c:
+          type: string
+          nullable: true
+          description: Notes about changes to application
+        AEX_Short_ID__c:
+          type: string
+          nullable: true
+          description: Short ID for AEX system reference
+        AEX_Document_ID__c:
+          type: string
+          nullable: true
+          description: AEX document identifier
+        Underwriting_Status__c:
+          type: string
+          nullable: true
+          description: Current underwriting status
+        Integration_Failure_Stage__c:
+          type: string
+          nullable: true
+          description: Stage where integration failed
+        Integration_Message__c:
+          type: string
+          nullable: true
+          description: Integration error message
+        Integration_Status__c:
+          type: string
+          enum:
+            - Success
+            - Failed
+          description: Integration status
+        MID__c:
+          type: string
+          description: Merchant ID (assigned when approved)
+        Id:
+          type: string
+          description: Opportunity ID
+          pattern: '^[a-zA-Z0-9]{15,18}$'
+
+    Error:
+      type: object
+      required:
+        - error
+        - error_description
+      properties:
+        error:
+          type: string
+          description: Error code
+        error_description:
+          type: string
+          description: Human-readable error description
+
+    ValidationError:
+      type: object
+      description: |
+        Validation error response. If any validation errors occur, the entire request is rejected and no information is saved.
+      required:
+        - Success
+        - Message
+      properties:
+        Success:
+          type: boolean
+          enum:
+            - false
+        ObjectType:
+          type: string
+          description: Object that failed validation (Account, Contact, Business_Checking_Account__c, Opportunity, Quote, QuoteLineItem)
+        Message:
+          type: string
+          description: |
+            Detailed validation error message. Examples:
+            - "Upsert failed. First exception on row 0; first error: REQUIRED_FIELD_MISSING, Required fields are missing: [Name]: [Name]"
+            - "Phone/Fax number must be a 10-digit number or in (999) 999-9999 format."
+            - "Federal Tax ID: Enter valid Federal Tax ID"
+            - "In order to add a Beneficial Owner you must select an Entity Type on the Merchant Information page"
+            - "Only one Control Prong Contact Roles allowed."
+            - "% Owned: Principal owner must own 25% or more of the merchant"
+        SourceId:
+          type: string
+          nullable: true
+
+  responses:
+    BadRequest:
+      description: |
+        Bad request - validation error or malformed request. 
+        
+        **Note:** If any validation errors occur, the entire request is rejected and no information is saved.
+      content:
+        application/json:
+          schema:
+            oneOf:
+              - $ref: '#/components/schemas/ValidationError'
+              - type: array
+                items:
+                  $ref: '#/components/schemas/ValidationError'
+          examples:
+            accountNameMissing:
+              summary: Account Name Required
+              value:
+                Success: false
+                ObjectType: "Account"
+                Message: "Upsert failed. First exception on row 0; first error: REQUIRED_FIELD_MISSING, Required fields are missing: [Name]: [Name]"
+            invalidPhone:
+              summary: Invalid Phone Format
+              value:
+                Success: false
+                ObjectType: "Account"
+                Message: "Upsert failed. First exception on row 0; first error: FIELD_CUSTOM_VALIDATION_EXCEPTION, Phone/Fax number must be a 10-digit number or in (999) 999-9999 format.: []"
+            invalidTaxId:
+              summary: Invalid Federal Tax ID
+              value:
+                Success: false
+                ObjectType: "Account"
+                Message: "Federal Tax ID: Enter valid Federal Tax ID"
+            invalidAssociation:
+              summary: Invalid Association ID
+              value:
+                Success: false
+                ObjectType: "Account"
+                Message: "3941803045 Association ID not found."
+            duplicateDDAType:
+              summary: Duplicate DDA Type
+              value:
+                Success: false
+                ObjectType: "Business_Checking_Account__c"
+                Message: "Only one Deposit Type account is allowed., Only one Chargeback Type account is allowed., Only one Fee Type account is allowed."
+            invalidRoutingNumber:
+              summary: Invalid Transit Routing Number
+              value:
+                Success: false
+                ObjectType: "Business_Checking_Account__c"
+                Message: "Upsert failed. First exception on row 0; first error: FIELD_CUSTOM_VALIDATION_EXCEPTION, Please enter a valid 9 digit number.: [Transit_Routing__c]"
+            multipleControlProng:
+              summary: Multiple Control Prong Not Allowed
+              value:
+                Success: false
+                ObjectType: "Contact"
+                Message: "Only one Control Prong Contact Roles allowed."
+            ownershipPercentage:
+              summary: Invalid Ownership Percentage
+              value:
+                Success: false
+                ObjectType: "Contact"
+                Message: "% Owned: Principal owner must own 25% or more of the merchant"
+
+    Unauthorized:
+      description: Unauthorized - invalid or expired token
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error: "invalid_grant"
+            error_description: "authentication failure"
+
+    InternalServerError:
+      description: Internal server error
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              message:
+                type: string
+              errorCode:
+                type: string

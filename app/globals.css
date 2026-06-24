@@ -1,0 +1,351 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* MerchantE Developer Portal — Canonical CSS Tokens */
+
+:root {
+  --background: 220 20% 7%;
+  --foreground: 0 0% 95%;
+
+  --card: 220 18% 10%;
+  --card-foreground: 0 0% 95%;
+
+  --primary: 168 55% 52%;
+  --primary-foreground: 220 20% 7%;
+  --primary-glow: 168 65% 60%;
+
+  --accent: 168 50% 48%;
+  --accent-foreground: 220 20% 7%;
+
+  --secondary: 220 18% 14%;
+  --secondary-foreground: 0 0% 85%;
+
+  --muted: 220 15% 13%;
+  --muted-foreground: 220 10% 50%;
+
+  --border: 220 15% 15%;
+  --input: 220 15% 15%;
+  --ring: 168 55% 52%;
+
+  --navy: 220 20% 5%;
+  --navy-foreground: 0 0% 95%;
+
+  --sidebar-background: 220 20% 8%;
+  --sidebar-foreground: 0 0% 90%;
+  --sidebar-primary: 168 55% 52%;
+  --sidebar-primary-foreground: 220 20% 7%;
+  --sidebar-accent: 220 18% 13%;
+  --sidebar-accent-foreground: 0 0% 90%;
+  --sidebar-border: 220 15% 15%;
+  --sidebar-ring: 168 55% 52%;
+
+  --destructive: 0 84% 60%;
+  --destructive-foreground: 0 0% 100%;
+
+  --radius: 0.5rem;
+
+  --gradient-hero: linear-gradient(180deg, hsl(168 35% 22%), hsl(190 25% 14%), hsl(220 20% 7%));
+  --gradient-card: linear-gradient(180deg, hsl(220 18% 11%), hsl(220 18% 9%));
+  --gradient-accent: linear-gradient(135deg, hsl(168 55% 52%), hsl(175 50% 46%));
+  --gradient-bg: linear-gradient(180deg, hsl(220 20% 7%), hsl(220 18% 9%), hsl(220 20% 7%));
+
+  --shadow-card: 0 2px 16px -4px hsl(0 0% 0% / 0.4);
+  --shadow-card-hover: 0 8px 32px -8px hsl(168 55% 52% / 0.2);
+  --shadow-hero: 0 20px 60px -20px hsl(168 55% 52% / 0.25);
+}
+
+.dark {
+  --background: 220 22% 6%;
+  --card: 220 18% 9%;
+  --secondary: 220 18% 12%;
+  --muted: 220 15% 11%;
+  --muted-foreground: 220 10% 45%;
+}
+
+html, body {
+  height: 100%;
+}
+
+body {
+  background: hsl(var(--background));
+  color: hsl(var(--foreground));
+}
+
+/* Legacy gradient class - now uses canonical tokens */
+.gradient-hero {
+  background: var(--gradient-hero);
+}
+
+/* Animated gradient effect for interactive elements */
+@keyframes gradient-shift {
+  0%, 100% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+}
+
+.gradient-animated {
+  background: var(--gradient-accent);
+  background-size: 200% 200%;
+  animation: gradient-shift 3s ease infinite;
+}
+
+/* Make Swagger UI feel more "docs" and less "tool" */
+.swagger-container {
+  font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial,
+    "Apple Color Emoji", "Segoe UI Emoji";
+}
+
+.swagger-container .swagger-ui .topbar {
+  display: none;
+}
+
+.swagger-container .swagger-ui {
+  font-family: inherit;
+}
+
+.swagger-container .swagger-ui .info {
+  margin: 24px 0;
+}
+
+.swagger-container .swagger-ui .scheme-container {
+  background: hsl(var(--muted));
+  box-shadow: none;
+  border: 1px solid hsl(var(--border));
+  border-radius: 12px;
+}
+
+/* Compact Swagger UI used as a right-rail "Try it out" panel */
+.swagger-panel {
+  font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial,
+    "Apple Color Emoji", "Segoe UI Emoji";
+}
+
+.swagger-panel .swagger-ui {
+  height: 100%;
+  overflow: auto;
+}
+
+.swagger-panel .swagger-ui .swagger-ui {
+  height: 100%;
+}
+
+.swagger-panel .swagger-ui .wrapper {
+  height: 100%;
+  overflow: auto;
+}
+
+/* Prevent large blocks from forcing the rail wider/taller than the viewport */
+.swagger-panel .swagger-ui pre,
+.swagger-panel .swagger-ui code {
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+/* Hide global models sidebar to keep the rail compact */
+.swagger-panel .swagger-ui section.models {
+  display: none;
+}
+
+.swagger-panel .swagger-ui .opblock-tag-section {
+  padding-bottom: 24px;
+}
+
+.swagger-panel .swagger-ui .topbar {
+  display: none;
+}
+
+.swagger-panel .swagger-ui .info {
+  display: none;
+}
+
+.swagger-panel .swagger-ui .scheme-container {
+  margin: 0;
+  padding: 12px;
+  background: hsl(var(--muted));
+  box-shadow: none;
+  border: 0;
+}
+
+.swagger-panel .swagger-ui .wrapper {
+  padding: 0;
+}
+
+.swagger-panel .swagger-ui .opblock-tag-section {
+  margin: 0;
+}
+
+.swagger-panel .swagger-ui .opblock {
+  margin: 0;
+  border-radius: 0;
+  border-left: 0;
+  border-right: 0;
+}
+
+/* MerchantE uses form fields (profile_id/profile_key) for auth.
+   Hide Swagger UI's global "Authorize" UI to avoid confusion. */
+.swagger-panel .swagger-ui .auth-wrapper,
+.swagger-panel .swagger-ui .authorization__btn,
+.swagger-panel .swagger-ui .authorize,
+.swagger-panel .swagger-ui .authorize-wrapper {
+  display: none !important;
+}
+
+/* Hide Swagger UI server selector to avoid conflicting environment selection. */
+.swagger-panel .swagger-ui .servers {
+  display: none !important;
+}
+
+/* Swagger UI overrides */
+.swagger-ui .scheme-container { display: none; }
+.swagger-ui .topbar { display: none; }
+.swagger-ui .info { display: none; }
+.swagger-ui .auth-wrapper { display: none !important; }
+.swagger-ui .authorize { display: none !important; }
+
+/* Fix Swagger UI text colors for dark theme readability */
+.swagger-ui,
+.swagger-ui .opblock-summary-path,
+.swagger-ui .opblock-summary-description,
+.swagger-ui .opblock-description-wrapper p,
+.swagger-ui .opblock-description,
+.swagger-ui .opblock-title_normal,
+.swagger-ui .opblock-body pre,
+.swagger-ui .parameter__name,
+.swagger-ui .parameter__type,
+.swagger-ui .parameter__in,
+.swagger-ui table thead tr th,
+.swagger-ui table tbody tr td,
+.swagger-ui .response-col_status,
+.swagger-ui .response-col_description,
+.swagger-ui .response-col_links,
+.swagger-ui .tab li,
+.swagger-ui label,
+.swagger-ui .btn,
+.swagger-ui .markdown p,
+.swagger-ui .markdown ul li,
+.swagger-ui .renderedMarkdown p,
+.swagger-ui .renderedMarkdown ul li {
+  color: hsl(var(--foreground)) !important;
+}
+
+/* Secondary text elements - slightly dimmer but still readable */
+.swagger-ui .opblock-summary-operation-id,
+.swagger-ui .opblock-external-docs-wrapper,
+.swagger-ui small {
+  color: hsl(var(--secondary-foreground)) !important;
+}
+
+/* Operation block backgrounds for dark theme */
+.swagger-ui .opblock {
+  background: hsl(var(--secondary));
+  border-color: hsl(var(--border));
+}
+
+.swagger-ui .opblock .opblock-summary {
+  border-color: hsl(var(--border));
+}
+
+.swagger-ui .opblock-body {
+  background: hsl(var(--muted));
+}
+
+/* Table styling for dark theme */
+.swagger-ui table tbody tr td {
+  border-color: hsl(var(--border));
+}
+
+/* Input fields in dark theme - high contrast white text */
+.swagger-ui input[type=text],
+.swagger-ui input[type=password],
+.swagger-ui input[type=search],
+.swagger-ui input[type=email],
+.swagger-ui input[type=file],
+.swagger-ui textarea,
+.swagger-ui select {
+  background: hsl(var(--muted)) !important;
+  border-color: hsl(var(--border)) !important;
+  color: hsl(var(--foreground)) !important;
+}
+
+.swagger-ui input[type=text]:focus,
+.swagger-ui input[type=password]:focus,
+.swagger-ui textarea:focus,
+.swagger-ui select:focus {
+  border-color: hsl(var(--primary)) !important;
+}
+
+/* Ensure placeholder text is visible but dimmer */
+.swagger-ui input::placeholder,
+.swagger-ui textarea::placeholder {
+  color: hsl(var(--muted-foreground)) !important;
+}
+
+/* Fix checkbox styling */
+.swagger-ui input[type=checkbox] {
+  accent-color: hsl(var(--primary));
+  cursor: pointer;
+}
+
+/* Hide greyed-out "Send empty value" checkboxes - they add visual noise */
+.swagger-ui .parameter__empty_value_toggle {
+  display: none !important;
+}
+
+
+/* ============================================
+   Accordion Animation (Try it out section)
+   ============================================ */
+.accordion-content {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 300ms ease-out;
+}
+
+.accordion-content.accordion-expanded,
+.accordion-content[data-expanded="true"] {
+  grid-template-rows: 1fr;
+}
+
+.accordion-content .accordion-inner {
+  overflow: hidden;
+}
+
+/* ============================================
+   Two-Column Layout Styles
+   ============================================ */
+
+/* Main content area with proper max-width for readability */
+.docs-main-content {
+  max-width: 900px;
+}
+
+/* Inline code samples styling */
+.inline-code-block {
+  margin-top: 1.5rem;
+  border-radius: 0.75rem;
+  overflow: hidden;
+}
+
+/* Collapsible sidebar transitions */
+.collapsible-sidebar {
+  transition: width 200ms ease;
+}
+
+/* Better scrollbar styling for dark theme */
+.docs-scroll::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.docs-scroll::-webkit-scrollbar-track {
+  background: hsl(var(--background));
+}
+
+.docs-scroll::-webkit-scrollbar-thumb {
+  background: hsl(var(--border));
+  border-radius: 4px;
+}
+
+.docs-scroll::-webkit-scrollbar-thumb:hover {
+  background: hsl(var(--muted-foreground));
+}

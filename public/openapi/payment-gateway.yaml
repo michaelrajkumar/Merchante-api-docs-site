@@ -1,0 +1,2046 @@
+openapi: 3.0.3
+info:
+  title: MerchantE Payment Gateway API
+  description: "The MerchantE Payment Gateway API lets merchants and resellers process\
+    \ live credit card transactions.\n\n**Key Features:**\n- Process credit card payments\
+    \ (Sale, Pre-Authorization, Capture, Refund, Void)\n- Store card information securely\
+    \ (Card on File / Tokenization)\n- Support for Card Present and Card Not Present\
+    \ transactions\n- Address Verification Service (AVS) and CVV2 verification\n-\
+    \ Level 3 processing for commercial and purchase cards\n- Support for Apple Pay\
+    \ and Google Pay\n- International currency processing\n\n**Security:**\n- All\
+    \ requests must use HTTPS protocol and POST requests\n- Follow PCI DSS compliance\
+    \ requirements\n- Do not store CVV2 codes or full track data\n\n**Base URL:**\n\
+    - Production: `https://api.merchante-solutions.com/mes-api/tridentApi`\n- Certification/Testing:\
+    \ `https://cert.merchante-solutions.com/mes-api/tridentApi`\n\n**Authentication:**\n\
+    All requests require `profile_id` and `profile_key` credentials issued by MerchantE.\n\
+    These are passed as form parameters in the request body, NOT as headers.\n\n---\n\
+    \n## Getting Started - Testing\n\n### 1. Obtain Test Credentials\n- Visit http://developer.merchante.com\n\
+    - Submit the certification request form\n- Receive test credentials via email\
+    \ within 24-48 hours\n- You will receive:\n  - `profile_id`: 20-digit merchant\
+    \ ID\n  - `profile_key`: 32-character API password\n\n### 2. Configure Your Client\n\
+    - Base URL: `https://cert.merchante-solutions.com/mes-api/tridentApi`\n- Method:\
+    \ POST\n- Content-Type: `application/x-www-form-urlencoded`\n- Include `profile_id`\
+    \ and `profile_key` in EVERY request body\n\n### 3. Test Card Numbers\nUse these\
+    \ card numbers in the certification environment:\n\n**Visa:**\n- `4012301230121237`\
+    \ - Standard approval\n- `4012301230121245` - Approval for amounts < $100\n\n\
+    **Mastercard:**\n- `5424000000000015` - Standard approval\n\n**Discover:**\n-\
+    \ `6011000000000012` - Standard approval\n\n**American Express:**\n- `371449635398431`\
+    \ - Standard approval (4-digit CVV)\n\n### 4. Test AVS Responses\nUse specific\
+    \ ZIP codes to trigger AVS responses:\n- `10001` = Match\n- `10002` = No Match\n\
+    - `10003` = Service Not Available\n\n### 5. Test CVV Responses\n- `999` = Match\n\
+    - `998` = No Match\n- `997` = Not Processed\n\n### 6. Amount-Driven Testing\n\
+    Submit specific amounts to trigger responses:\n- `1.00` = Approval\n- `2.00` =\
+    \ Decline (Insufficient Funds)\n- `3.00` = Call for Authorization\n\n### 7. Partial\
+    \ Authorization Testing\n- Include `rctl_partial_auth=Y` in request\n- System\
+    \ will approve 1/3 of requested amount\n\n---\n\n## Quick Start Example\n\n```bash\n\
+    # Simple Sale Transaction (Certification Environment)\ncurl -X POST https://cert.merchante-solutions.com/mes-api/tridentApi\
+    \ \\\n  -H \"Content-Type: application/x-www-form-urlencoded\" \\\n  -d \"profile_id=YOUR_PROFILE_ID\"\
+    \ \\\n  -d \"profile_key=YOUR_PROFILE_KEY\" \\\n  -d \"transaction_type=D\" \\\
+    \n  -d \"card_number=4012301230121237\" \\\n  -d \"card_exp_date=1225\" \\\n \
+    \ -d \"transaction_amount=10.00\" \\\n  -d \"account_data_source=@\"\n```\n\n\
+    **Expected Response:**\n```\ntransaction_id=7f84a42eeb393eafb76b327ec62eb693&error_code=000&auth_response_text=Approval+T40792&auth_code=T40792&avs_result=0\n\
+    ```\n\n---\n\n## Important Notes\n\n\u26A0\uFE0F **Production vs Certification:**\n\
+    - Use ONLY test profile credentials in certification environment\n- Certification\
+    \ transactions are NOT settled and do NOT charge cards\n- Production profile credentials\
+    \ used in testing WILL result in actual charges\n- Always verify you're using\
+    \ the correct environment URL\n\n\u26A0\uFE0F **PCI Compliance:**\n- Never log\
+    \ or store full card numbers in your systems\n- Do not store CVV2/CVC codes after\
+    \ authorization\n- Do not store full magnetic stripe data\n- Use tokenization\
+    \ (Store Card) for recurring transactions\n\n\u26A0\uFE0F **Rate Limits:**\n-\
+    \ No specific rate limits documented\n- Use reasonable request rates during testing\n\
+    - Contact MerchantE if you need high-volume testing"
+  version: March 2024
+  contact:
+    name: MerchantE Support
+    url: http://developer.merchante.com
+  termsOfService: https://www.pcisecuritystandards.org/
+servers:
+- url: https://cert.merchante-solutions.com/mes-api
+  description: Test Environment
+tags:
+- name: Sales
+  description: Sale and payment transactions
+- name: Authorization
+  description: Pre-authorization operations
+- name: Capture
+  description: Settlement and capture operations
+- name: Refunds
+  description: Refund and credit operations
+- name: Voids
+  description: Void operations
+- name: Tokens
+  description: Card tokenization and storage
+- name: Recurring
+  description: 'Recurring subscription and installment payments using Card on File.
+
+
+    **Card on File (CoF) Transactions:**
+
+    Recurring payments require Card on File credentials and must include specific fields to indicate the transaction type:
+
+
+    - `card_on_file=Y` - Indicates this is a CoF transaction
+
+    - `account_data_source=@` - Credentials obtained from file (not from cardholder)
+
+    - `merchant_initiated=Y` - Merchant-initiated transaction (MIT)
+
+    - `transaction_id` - Reference to initial authorization when cardholder was present
+
+
+    **SIT vs MIT:**
+
+
+    - **CIT (Cardholder-Initiated Transaction / SIT):** Initial transaction where cardholder is present and provides credentials. Do NOT include `merchant_initiated` field.
+
+    - **MIT (Merchant-Initiated Transaction):** Subsequent recurring charges where merchant initiates payment using stored credentials. Include `merchant_initiated=Y`.
+
+
+    **moto_ecommerce_ind Values:**
+
+
+    - `M103` = Recurring/Subscription payment
+
+    - `M104` = Recurring/Installment payment'
+- name: Verification
+  description: Card verification operations
+- name: Inquiry
+  description: Transaction inquiry
+- name: Card on File
+  description: Card on File (CoF) operations
+paths:
+  /tridentApi:
+    post:
+      summary: Process payment transaction
+      description: 'Main endpoint for processing various types of payment transactions.
+
+        Transaction type is determined by the `transaction_type` parameter.
+
+
+        **Transaction Types:**
+
+        - D = Sale
+
+        - P = Pre-Authorization
+
+        - S = Capture/Settlement
+
+        - J = Re-Authorization
+
+        - U = Refund
+
+        - C = Credit
+
+        - V = Void
+
+        - A = Verification
+
+        - T = Store Card (Temporary Token)
+
+        - X = Delete Stored Card
+
+        - Z = Batch Close
+
+        - I = Inquiry
+
+        - 3DT = 3DS Authentication
+
+
+
+        Note: This API is submitted as application/x-www-form-urlencoded to the Trident
+        endpoint. Use the request examples for each transaction_type and follow the
+        Required/Recommended/Others grouping in each request schema.'
+      tags:
+      - Sales
+      - Authorization
+      - Capture
+      - Refunds
+      - Voids
+      - Tokens
+      - Verification
+      - Inquiry
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              oneOf:
+              - $ref: '#/components/schemas/SaleRequest'
+              - $ref: '#/components/schemas/PreAuthorizationRequest'
+              - $ref: '#/components/schemas/CaptureRequest'
+              - $ref: '#/components/schemas/RefundRequest'
+              - $ref: '#/components/schemas/CreditRequest'
+              - $ref: '#/components/schemas/VoidRequest'
+              - $ref: '#/components/schemas/VerificationRequest'
+              - $ref: '#/components/schemas/TemporaryTokenRequest'
+              - $ref: '#/components/schemas/DeleteCardRequest'
+              - $ref: '#/components/schemas/InquiryRequest'
+              - $ref: '#/components/schemas/ReAuthorizationRequest'
+              discriminator:
+                propertyName: transaction_type
+                mapping:
+                  D: '#/components/schemas/SaleRequest'
+                  P: '#/components/schemas/PreAuthorizationRequest'
+                  S: '#/components/schemas/CaptureRequest'
+                  U: '#/components/schemas/RefundRequest'
+                  C: '#/components/schemas/CreditRequest'
+                  V: '#/components/schemas/VoidRequest'
+                  A: '#/components/schemas/VerificationRequest'
+                  T: '#/components/schemas/TemporaryTokenRequest'
+                  X: '#/components/schemas/DeleteCardRequest'
+                  I: '#/components/schemas/InquiryRequest'
+                  J: '#/components/schemas/ReAuthorizationRequest'
+            examples:
+              sale:
+                summary: Card Not Present Sale
+                description: Basic sale transaction with AVS and CVV verification
+                value:
+                  profile_id: YOUR_PROFILE_ID_HERE
+                  profile_key: YOUR_PROFILE_KEY_HERE
+                  transaction_type: D
+                  account_data_source: '@'
+                  card_number: '4012301230121237'
+                  card_exp_date: '1225'
+                  cvv2: '999'
+                  transaction_amount: '10.00'
+                  cardholder_street_address: 123 Main St
+                  cardholder_zip: '10001'
+                  moto_ecommerce_ind: '7'
+              saleWithToken:
+                summary: Sale Using Stored Token
+                description: Process sale using previously stored card token
+                value:
+                  profile_id: YOUR_PROFILE_ID_HERE
+                  profile_key: YOUR_PROFILE_KEY_HERE
+                  transaction_type: D
+                  card_id: 8fc94e10b12130f4ab8a8ceeac40fc69
+                  transaction_amount: '25.50'
+                  card_on_file: Y
+                  moto_ecommerce_ind: '7'
+                  account_data_source: '@'
+              saleWithInvoice:
+                summary: Sale With Invoice and Tax
+                description: Complete sale with invoice number, tax, and shipping
+                value:
+                  profile_id: YOUR_PROFILE_ID_HERE
+                  profile_key: YOUR_PROFILE_KEY_HERE
+                  transaction_type: D
+                  account_data_source: '@'
+                  card_number: '5424000000000015'
+                  card_exp_date: '1225'
+                  cvv2: '999'
+                  transaction_amount: '108.50'
+                  tax_amount: '8.50'
+                  shipping_amount: '10.00'
+                  invoice_number: INV-2024-001
+                  purchase_order: PO-12345
+                  moto_ecommerce_ind: '7'
+              preauth:
+                summary: Pre-Authorization
+                description: Authorize payment without capturing (e.g., hotel check-in)
+                value:
+                  profile_id: YOUR_PROFILE_ID_HERE
+                  profile_key: YOUR_PROFILE_KEY_HERE
+                  transaction_type: P
+                  account_data_source: '@'
+                  card_number: '4012301230121237'
+                  card_exp_date: '1225'
+                  cvv2: '999'
+                  transaction_amount: '100.00'
+                  cardholder_street_address: 456 Oak Ave
+                  cardholder_zip: '10001'
+                  moto_ecommerce_ind: '7'
+              capture:
+                summary: Capture Pre-Authorization
+                description: Settle previously authorized transaction
+                value:
+                  profile_id: YOUR_PROFILE_ID_HERE
+                  profile_key: YOUR_PROFILE_KEY_HERE
+                  transaction_type: S
+                  transaction_id: 8fc94e10b12130f4ab8a8ceeac40fc69
+                  transaction_amount: '100.00'
+                  invoice_number: INV-2024-002
+              partialCapture:
+                summary: Partial Capture
+                description: Capture less than the authorized amount
+                value:
+                  profile_id: YOUR_PROFILE_ID_HERE
+                  profile_key: YOUR_PROFILE_KEY_HERE
+                  transaction_type: S
+                  transaction_id: 8fc94e10b12130f4ab8a8ceeac40fc69
+                  transaction_amount: '75.00'
+              refund:
+                summary: Refund Transaction
+                description: Refund a settled transaction (full or partial)
+                value:
+                  profile_id: YOUR_PROFILE_ID_HERE
+                  profile_key: YOUR_PROFILE_KEY_HERE
+                  transaction_type: U
+                  transaction_id: 8fc94e10b12130f4ab8a8ceeac40fc69
+                  transaction_amount: '12.30'
+                  retry_id: REFUND001
+              credit:
+                summary: Standalone Credit
+                description: Credit a card without referencing an original sale (e.g., refund for returned merchandise purchased with cash)
+                value:
+                  profile_id: YOUR_PROFILE_ID_HERE
+                  profile_key: YOUR_PROFILE_KEY_HERE
+                  transaction_type: C
+                  account_data_source: '@'
+                  card_number: '4012301230121237'
+                  card_exp_date: '1225'
+                  cvv2: '999'
+                  transaction_amount: '25.00'
+                  cardholder_street_address: 123 Main St
+                  cardholder_zip: '10001'
+                  moto_ecommerce_ind: '7'
+                  invoice_number: INV-2024-CREDIT-001
+              void:
+                summary: Void Transaction
+                description: Cancel a transaction before settlement
+                value:
+                  profile_id: YOUR_PROFILE_ID_HERE
+                  profile_key: YOUR_PROFILE_KEY_HERE
+                  transaction_type: V
+                  transaction_id: 8fc94e10b12130f4ab8a8ceeac40fc69
+                  moto_ecommerce_ind: '7'
+              storeCardPermanent:
+                summary: Create Permanent Token (store_card=Y on Sale)
+                description: Request a permanent token (card_id) to store customer
+                  credentials for future transactions. Permanent tokenization is done
+                  via store_card=Y (not via transaction_type=T).
+                value:
+                  profile_id: YOUR_PROFILE_ID_HERE
+                  profile_key: YOUR_PROFILE_KEY_HERE
+                  transaction_type: D
+                  account_data_source: '@'
+                  card_number: '4012301230121237'
+                  card_exp_date: '1225'
+                  cvv2: '999'
+                  transaction_amount: '15.00'
+                  store_card: Y
+                  moto_ecommerce_ind: '7'
+              deleteCard:
+                summary: Delete Stored Card
+                description: Remove a permanently stored card token
+                value:
+                  profile_id: YOUR_PROFILE_ID_HERE
+                  profile_key: YOUR_PROFILE_KEY_HERE
+                  transaction_type: X
+                  card_id: 8fc94e10b12130f4ab8a8ceeac40fc69
+              verification:
+                summary: Card Verification
+                description: Verify card without charging (AVS and CVV check)
+                value:
+                  profile_id: YOUR_PROFILE_ID_HERE
+                  profile_key: YOUR_PROFILE_KEY_HERE
+                  transaction_type: A
+                  account_data_source: '@'
+                  card_number: '4012301230121237'
+                  card_exp_date: '1225'
+                  cvv2: '999'
+                  transaction_amount: '0.00'
+                  cardholder_street_address: 789 Pine Rd
+                  cardholder_zip: '10001'
+                  moto_ecommerce_ind: Z
+              inquiry:
+                summary: Transaction Inquiry
+                description: Query status of transaction by retry_id
+                value:
+                  profile_id: YOUR_PROFILE_ID_HERE
+                  profile_key: YOUR_PROFILE_KEY_HERE
+                  transaction_type: I
+                  retry_id: REFUND001
+              recurringPayment:
+                summary: Recurring Payment (Installment 2 of 12)
+                description: Process installment payment with Card on File
+                value:
+                  profile_id: YOUR_PROFILE_ID_HERE
+                  profile_key: YOUR_PROFILE_KEY_HERE
+                  transaction_type: D
+                  card_id: 8fc94e10b12130f4ab8a8ceeac40fc69
+                  transaction_amount: '49.99'
+                  card_on_file: Y
+                  account_data_source: '@'
+                  merchant_initiated: Y
+                  moto_ecommerce_ind: M104
+                  payment_count: '2'
+                  recurring_payment_count: '12'
+              recurringSubscription:
+                summary: Recurring Subscription Payment
+                description: Process subscription-based recurring payment with Card on File
+                value:
+                  profile_id: YOUR_PROFILE_ID_HERE
+                  profile_key: YOUR_PROFILE_KEY_HERE
+                  transaction_type: D
+                  card_id: 8fc94e10b12130f4ab8a8ceeac40fc69
+                  transaction_amount: '49.99'
+                  card_on_file: Y
+                  account_data_source: '@'
+                  merchant_initiated: Y
+                  moto_ecommerce_ind: M103
+              recurringInstallment:
+                summary: Recurring Installment Payment (2 of 12)
+                description: Process installment-based recurring payment with Card on File
+                value:
+                  profile_id: YOUR_PROFILE_ID_HERE
+                  profile_key: YOUR_PROFILE_KEY_HERE
+                  transaction_type: D
+                  card_id: 8fc94e10b12130f4ab8a8ceeac40fc69
+                  transaction_amount: '99.99'
+                  card_on_file: Y
+                  account_data_source: '@'
+                  merchant_initiated: Y
+                  moto_ecommerce_ind: M104
+                  payment_count: '2'
+                  recurring_payment_count: '12'
+              surcharge:
+                summary: Sale with Surcharge
+                description: Add surcharge fee to credit card transaction
+                value:
+                  profile_id: YOUR_PROFILE_ID_HERE
+                  profile_key: YOUR_PROFILE_KEY_HERE
+                  transaction_type: D
+                  account_data_source: '@'
+                  card_number: '537143000000001'
+                  card_exp_date: '1225'
+                  transaction_amount: '36.05'
+                  tran_fee_amount: '1.05'
+                  moto_ecommerce_ind: '7'
+              temporaryToken:
+                summary: Create Temporary Token (transaction_type=T)
+                description: Store a card for one-time use. The response transaction_id
+                  becomes card_id for a temporary token. Temporary tokens expire after
+                  one use or 30 minutes.
+                value:
+                  profile_id: YOUR_PROFILE_ID_HERE
+                  profile_key: YOUR_PROFILE_KEY_HERE
+                  transaction_type: T
+                  card_number: '4012301230121237'
+                  card_exp_date: '1225'
+      responses:
+        '200':
+          description: Successful transaction response
+          content:
+            application/x-www-form-urlencoded:
+              schema:
+                $ref: '#/components/schemas/TransactionResponse'
+              examples:
+                saleApproved:
+                  summary: Sale Approved
+                  value:
+                    transaction_id: 5fc24a2abe160c232a6dccd72ed8c5ba
+                    error_code: '000'
+                    auth_response_text: Approval T02786
+                    avs_result: '0'
+                    cvv2_result: M
+                    auth_code: T02786
+                preauthApproved:
+                  summary: Pre-Authorization Approved
+                  value:
+                    transaction_id: 0ac2bda47da574489dfe428ef30b3339
+                    error_code: '000'
+                    auth_response_text: Approval T78243
+                    avs_result: '0'
+                    auth_code: T78243
+                    cvv2_result: M
+                captureAccepted:
+                  summary: Capture Accepted
+                  value:
+                    transaction_id: 173d3dcc1064e668deba383d2b2f90f8
+                    error_code: '000'
+                    auth_response_text: Settle Request Accepted
+                refundAcceptedAdjustment:
+                  summary: Refund Accepted (Adjustment)
+                  value:
+                    transaction_id: 38356d5c6625379a9b3e55920f5f9e8a
+                    error_code: '000'
+                    auth_response_text: Refund Request Accepted - Adjustment $0.40
+                refundResultingCredit:
+                  summary: Refund Resulting in a Credit
+                  value:
+                    transaction_id: 9dedb6066dac3d0db45d07d80e6feab2
+                    error_code: '000'
+                    auth_response_text: Refund Request Accepted - Credit $5.00
+                    avs_result: '0'
+                    auth_code: '750670'
+                creditApproved:
+                  summary: Credit Approved
+                  value:
+                    transaction_id: be7c5c8a61d73c31b7bbca308e508b14
+                    error_code: '000'
+                    auth_response_text: Credit Approved
+                    avs_result: '0'
+                    auth_code: '689420'
+                voidAccepted:
+                  summary: Void Accepted
+                  value:
+                    transaction_id: 03c7704b2339f7e5d57e125c12a47023
+                    error_code: '000'
+                    auth_response_text: Void Request Accepted
+                verifyApproved:
+                  summary: Verification Approved
+                  value:
+                    transaction_id: 8fc94e10b12130f4ab8a8ceeac40fc69
+                    error_code: '000'
+                    auth_response_text: Approval T95060
+                    avs_result: '0'
+                    cvv2_result: M
+                    auth_code: T95060
+                temporaryTokenCreated:
+                  summary: Temporary Token Created
+                  value:
+                    transaction_id: fe88e5f9cc1a42d5dcabc278b14c95cf
+                    error_code: '000'
+                    auth_response_text: Card Stored
+                permanentTokenCreated:
+                  summary: Permanent Token Created (store_card=Y)
+                  value:
+                    transaction_id: 6cd0c94e693939d4c2fd1fdfdf4ba018
+                    error_code: '000'
+                    auth_response_text: Approval T31145
+                    avs_result: '0'
+                    auth_code: T31145
+                    card_id: de2072a20064328c89fe1c84a8355819
+                tokenDeleted:
+                  summary: Permanent Token Deleted
+                  value:
+                    transaction_id: 3520824992915250a09fd50c73ee10dd
+                    error_code: '000'
+                    auth_response_text: Card Removed
+                reauthDeclinedExample:
+                  summary: Re-Authorization Declined Example
+                  value:
+                    transaction_id: 09e3ea944c035b4c629221c48caa82b9
+                    error_code: '005'
+                    auth_response_text: Do Not Honor
+        '400':
+          description: Bad request - invalid parameters
+        '401':
+          description: Unauthorized - invalid credentials
+        '500':
+          description: Server error
+      operationId: submitTridentTransaction
+components:
+  schemas:
+    BaseRequest:
+      type: object
+      required:
+      - profile_id
+      - profile_key
+      - transaction_type
+      properties:
+        profile_id:
+          type: string
+          description: ID issued by MerchantE
+          example: '94100099999900000001'
+          maxLength: 20
+          pattern: ^\d{20}$
+        profile_key:
+          type: string
+          description: API password assigned by MerchantE
+          example: FhcOqsIRkbrsvhlqMgweJHmnLhdnJAwk
+          maxLength: 32
+        transaction_type:
+          type: string
+          description: 'Transaction type (value depends on the endpoint being called)'
+          - F
+          maxLength: 3
+    CardInformation:
+      type: object
+      properties:
+        card_number:
+          type: string
+          description: Payment card number. Do not send if using card_id or card_swipe.
+          example: '4012301230158'
+          minLength: 5
+          maxLength: 22
+          pattern: ^\d{5,22}$
+        card_id:
+          type: string
+          description: Stored customer card information (token from Store Card request)
+          example: 8fc94e10b12130f4ab8a8ceeac40fc69
+          maxLength: 32
+        card_swipe:
+          type: string
+          description: Contents of payment card read by electronic device. Always
+            processed as card-present.
+        card_exp_date:
+          type: string
+          description: Card expiration date, submit as MMYY. Required when using card_number.
+          example: '1225'
+          pattern: ^\d{4}$
+          maxLength: 4
+        cvv2:
+          type: string
+          description: 'Card Verification Value:
+
+            - Visa: CVV2
+
+            - Mastercard: CVC2
+
+            - Discover: CID
+
+            - American Express: CID (4 digits)
+
+            '
+          example: '123'
+          minLength: 3
+          maxLength: 4
+          pattern: ^\d{3,4}$
+    CardholderInformation:
+      type: object
+      properties:
+        cardholder_name:
+          type: string
+          description: Cardholder's full name
+          example: John Smith
+          maxLength: 64
+        cardholder_first_name:
+          type: string
+          description: Cardholder first name
+          example: John
+          maxLength: 15
+        cardholder_last_name:
+          type: string
+          description: Cardholder last name
+          example: Smith
+          maxLength: 30
+        cardholder_street_address:
+          type: string
+          description: First 19 characters of cardholder's billing address
+          example: 123 Main Street
+          maxLength: 19
+        cardholder_zip:
+          type: string
+          description: Cardholder's ZIP code (5 or 9 digits)
+          example: '10453'
+          pattern: ^\d{5}(\d{4})?$
+        cardholder_city:
+          type: string
+          description: Cardholder's city
+          example: New York
+          maxLength: 20
+        cardholder_state:
+          type: string
+          description: Cardholder's state (2-letter code)
+          example: NY
+          maxLength: 2
+        cardholder_country:
+          type: string
+          description: Cardholder's country code
+          example: US
+          maxLength: 2
+        cardholder_email:
+          type: string
+          format: email
+          description: Cardholder's billing email
+          example: jsmith@email.com
+          maxLength: 60
+        cardholder_phone:
+          type: string
+          description: Cardholder's billing phone (digits only, no dashes)
+          example: '8005550101'
+          pattern: ^\d{10}$
+          maxLength: 10
+    CardOnFileFields:
+      type: object
+      description: Card on File / Stored Credential fields required for CoF transactions
+      properties:
+        card_on_file:
+          type: string
+          description: Indicates if the transaction is a card on file transaction
+          enum:
+          - Y
+          - N
+          maxLength: 1
+        cit_mit_indicator:
+          type: string
+          description: 'Card on File transaction indicator (Mastercard):
+
+
+            Cardholder-Initiated:
+
+            - C101 = Credential-on-File (ad-hoc)
+
+            - C102 = Standing Order (variable amount and fixed frequency)
+
+            - C103 = Subscription (fixed amount and frequency)
+
+            - C104 = Installment (single purchase with known amount and set frequency)
+
+
+            Merchant-Initiated Recurring/Installment:
+
+            - M101 = Unscheduled Credential-on-File (variable amount, no regular intervals)
+
+            - M102 = Standing Order (variable amount and fixed frequency at regular
+            intervals)
+
+            - M103 = Subscription (fixed amount and frequency)
+
+            - M104 = Installment (single purchase with known amount and set frequency)
+
+
+            Merchant-Initiated Industry Practice:
+
+            - M205 = Partial Shipment
+
+            - M206 = Related/Delayed Charge
+
+            - M207 = No Show Charge
+
+            - M208 = Resubmission
+
+            '
+          enum:
+          - C101
+          - C102
+          - C103
+          - C104
+          - M101
+          - M102
+          - M103
+          - M104
+          - M205
+          - M206
+          - M207
+          - M208
+          maxLength: 4
+        store_card:
+          type: string
+          description: Store card for future use (creates permanent token)
+          enum:
+          - Y
+          - y
+          maxLength: 1
+    TransactionDetails:
+      type: object
+      properties:
+        transaction_amount:
+          type: string
+          description: Transaction amount (decimal format)
+          example: '12.35'
+          pattern: ^\d+\.\d{2}$
+          maxLength: 12
+        transaction_id:
+          type: string
+          description: Unique identifier for the transaction (from previous transaction)
+          example: 8fc94e10b12130f4ab8a8ceeac40fc69
+          maxLength: 32
+        invoice_number:
+          type: string
+          description: Merchant-defined invoice number (no special characters)
+          example: INV-2024-001
+          maxLength: 20
+        purchase_order:
+          type: string
+          description: Purchase order number
+          example: PO-12345
+          maxLength: 20
+        purchase_id:
+          type: string
+          description: Merchant-defined purchase identifier
+          maxLength: 20
+        tax_amount:
+          type: string
+          description: Tax amount
+          example: '1.05'
+          pattern: ^\d+\.\d{2}$
+          maxLength: 9
+        shipping_amount:
+          type: string
+          description: Shipping/freight amount
+          example: '5.00'
+          pattern: ^\d+\.\d{2}$
+          maxLength: 9
+        tran_fee_amount:
+          type: string
+          description: Surcharge amount for transaction
+          example: '1.05'
+          pattern: ^\d+\.\d{2}$
+          maxLength: 9
+        currency_code:
+          type: string
+          description: ISO 4217 currency code (default 840 = USD)
+          example: '840'
+          maxLength: 3
+          default: '840'
+        moto_ecommerce_ind:
+          type: string
+          description: 'Mail Order / Telephone Order / E-commerce indicator.
+
+            Common values:
+
+            - 1: MOTO (Mail Order/Telephone Order) - Single transaction
+
+            - 2: MOTO (Mail Order/Telephone Order) - Recurring
+
+            - 3: MOTO (Mail Order/Telephone Order) - Installment
+
+            - 7: E-commerce (Internet/Mobile)'
+          enum:
+          - Z
+          - '1'
+          - '2'
+          - '3'
+          - '5'
+          - '6'
+          - '7'
+          - '07'
+          - '8'
+          - A
+          maxLength: 2
+          default: '7'
+        retry_id:
+          type: string
+          description: Enables Inquiry transaction of this request
+          maxLength: 16
+        message_reason_code:
+          type: string
+          description: Message reason code for deferred authorizations
+          maxLength: 4
+    SaleRequest:
+      allOf:
+      - $ref: '#/components/schemas/BaseRequest'
+      - $ref: '#/components/schemas/CardInformation'
+      - $ref: '#/components/schemas/CardholderInformation'
+      - $ref: '#/components/schemas/CardOnFileFields'
+      - $ref: '#/components/schemas/TransactionDetails'
+      - $ref: '#/components/schemas/AdvancedFields'
+      - type: object
+        required:
+        - transaction_amount
+        - account_data_source
+        - moto_ecommerce_ind
+        properties:
+          transaction_type:
+            type: string
+            description: 'Sale transaction (D)'
+            enum:
+            - D
+            example: D
+          account_data_source:
+            type: string
+            description: 'Indicates where credentials came from:
+
+              - @ = Manually keyed, not Track capable
+
+              - Y = Credentials obtained from file (not from cardholder)
+
+              '
+            enum:
+            - '@'
+            - Y
+            maxLength: 1
+      x-parameterGroups:
+      - name: Required
+        fields:
+        - profile_id
+        - profile_key
+        - transaction_type
+        - transaction_amount
+        - account_data_source
+        - card_number
+        - card_id
+        - card_swipe
+        - moto_ecommerce_ind
+        conditional: &id001
+        - oneOf:
+          - card_number + card_exp_date
+          - card_id
+          - card_swipe
+          note: Provide exactly one credential source. card_exp_date is required when
+            using card_number.
+      - name: Recommended
+        fields:
+        - card_exp_date
+        - cvv2
+        - cardholder_street_address
+        - cardholder_zip
+        - invoice_number
+    PreAuthorizationRequest:
+      allOf:
+      - $ref: '#/components/schemas/BaseRequest'
+      - $ref: '#/components/schemas/CardInformation'
+      - $ref: '#/components/schemas/CardholderInformation'
+      - $ref: '#/components/schemas/CardOnFileFields'
+      - $ref: '#/components/schemas/TransactionDetails'
+      - $ref: '#/components/schemas/AdvancedFields'
+      - type: object
+        required:
+        - transaction_amount
+        - account_data_source
+        - moto_ecommerce_ind
+        properties:
+          transaction_type:
+            type: string
+            description: 'Pre-Authorization transaction (P)'
+            enum:
+            - P
+            example: P
+          account_data_source:
+            type: string
+            description: 'Indicates where credentials came from:
+
+              - @ = Manually keyed, not Track capable
+
+              - Y = Credentials obtained from file (not from cardholder)
+
+              '
+            enum:
+            - '@'
+            - Y
+            maxLength: 1
+      x-parameterGroups:
+      - name: Required
+        fields:
+        - profile_id
+        - profile_key
+        - transaction_type
+        - transaction_amount
+        - account_data_source
+        - card_number
+        - card_id
+        - card_swipe
+        - moto_ecommerce_ind
+        conditional: *id001
+      - name: Recommended
+        fields:
+        - card_exp_date
+        - cvv2
+        - cardholder_street_address
+        - cardholder_zip
+        - invoice_number
+    CaptureRequest:
+      allOf:
+      - $ref: '#/components/schemas/BaseRequest'
+      - type: object
+        required:
+        - transaction_id
+        - transaction_amount
+        properties:
+          transaction_type:
+            type: string
+            description: 'Capture transaction (S)'
+            enum:
+            - S
+            example: S
+          transaction_id:
+            type: string
+            description: Transaction ID from pre-authorization
+            example: 8fc94e10b12130f4ab8a8ceeac40fc69
+            maxLength: 32
+          transaction_amount:
+            type: string
+            description: Amount to capture
+            example: '12.35'
+            pattern: ^\d+\.\d{2}$
+          invoice_number:
+            type: string
+            description: Merchant-defined invoice number
+            maxLength: 20
+          tran_fee_amount:
+            type: string
+            description: Surcharge amount (if applicable)
+            maxLength: 9
+      x-parameterGroups:
+      - name: Required
+        fields:
+        - profile_id
+        - profile_key
+        - transaction_type
+        - transaction_id
+      - name: Recommended
+        fields:
+        - transaction_amount
+        - invoice_number
+    ReAuthorizationRequest:
+      allOf:
+      - $ref: '#/components/schemas/BaseRequest'
+      - type: object
+        required:
+        - transaction_id
+        properties:
+          transaction_type:
+            type: string
+            description: 'Re-Authorization transaction (J)'
+            enum:
+            - J
+            example: J
+          transaction_id:
+            type: string
+            description: Transaction ID from original pre-authorization
+            maxLength: 32
+      x-parameterGroups:
+      - name: Required
+        fields:
+        - profile_id
+        - profile_key
+        - transaction_type
+        - transaction_id
+      - name: Recommended
+        fields: []
+
+    RefundRequest:
+      allOf:
+      - $ref: '#/components/schemas/BaseRequest'
+      - type: object
+        required:
+        - transaction_id
+        - transaction_amount
+        properties:
+          transaction_type:
+            type: string
+            description: 'Refund transaction (U)'
+            enum:
+            - U
+            example: U
+          transaction_id:
+            type: string
+            description: Transaction ID of original sale
+            maxLength: 32
+          transaction_amount:
+            type: string
+            description: Amount to refund (partial refunds accepted)
+            pattern: ^\d+\.\d{2}$
+          retry_id:
+            type: string
+            description: Enables Inquiry transaction of this request
+            maxLength: 16
+      x-parameterGroups:
+      - name: Required
+        fields:
+        - profile_id
+        - profile_key
+        - transaction_type
+        - transaction_id
+        - transaction_amount
+      - name: Recommended
+        fields: []
+          must be refunded when surcharging was applied.
+    CreditRequest:
+      allOf:
+      - $ref: '#/components/schemas/BaseRequest'
+      - $ref: '#/components/schemas/CardInformation'
+      - $ref: '#/components/schemas/CardholderInformation'
+      - type: object
+        required:
+        - transaction_amount
+        - account_data_source
+        - moto_ecommerce_ind
+        properties:
+          transaction_type:
+            type: string
+            description: 'Credit transaction (C)'
+            enum:
+            - C
+            example: C
+          transaction_amount:
+            type: string
+            description: Amount to credit
+            pattern: ^\d+\.\d{2}$
+          account_data_source:
+            type: string
+            enum:
+            - '@'
+            - D
+            - G
+            - H
+            - P
+            - Q
+            - R
+            - S
+            - T
+            - X
+          payment_account_reference:
+            type: string
+            description: Payment Account Reference (AMEX=35 chars, Other=29 chars)
+            maxLength: 35
+          retry_id:
+            type: string
+            maxLength: 16
+          moto_ecommerce_ind:
+            type: string
+            description: 'Mail Order / Telephone Order / E-commerce indicator.
+
+              Common values:
+
+              - 1: MOTO (Mail Order/Telephone Order) - Single transaction
+
+              - 2: MOTO (Mail Order/Telephone Order) - Recurring
+
+              - 3: MOTO (Mail Order/Telephone Order) - Installment
+
+              - 7: E-commerce (Internet/Mobile)'
+            enum:
+            - Z
+            - '1'
+            - '2'
+            - '3'
+            - '5'
+            - '6'
+            - '7'
+            - '07'
+            - '8'
+            - A
+            maxLength: 2
+            default: '7'
+      x-parameterGroups:
+      - name: Required
+        fields:
+        - profile_id
+        - profile_key
+        - transaction_type
+        - transaction_amount
+        - account_data_source
+        - moto_ecommerce_ind
+        conditional: *id001
+      - name: Recommended
+        fields:
+        - card_exp_date
+        - cvv2
+        - cardholder_street_address
+        - cardholder_zip
+          or card_id, or card_swipe.'
+    VoidRequest:
+      allOf:
+      - $ref: '#/components/schemas/BaseRequest'
+      - type: object
+        required:
+        - transaction_id
+        - moto_ecommerce_ind
+        properties:
+          transaction_type:
+            type: string
+            description: 'Void transaction (V)'
+            enum:
+            - V
+            example: V
+          transaction_id:
+            type: string
+            description: Transaction ID to void
+            maxLength: 32
+          moto_ecommerce_ind:
+            type: string
+            description: 'Mail Order / Telephone Order / E-commerce indicator.
+
+              Common values:
+
+              - 1: MOTO (Mail Order/Telephone Order) - Single transaction
+
+              - 2: MOTO (Mail Order/Telephone Order) - Recurring
+
+              - 3: MOTO (Mail Order/Telephone Order) - Installment
+
+              - 7: E-commerce (Internet/Mobile)'
+            enum:
+            - Z
+            - '1'
+            - '2'
+            - '3'
+            - '5'
+            - '6'
+            - '7'
+            - '07'
+            - '8'
+            - A
+            maxLength: 2
+            default: '7'
+      x-parameterGroups:
+      - name: Required
+        fields:
+        - profile_id
+        - profile_key
+        - transaction_type
+        - transaction_id
+        - moto_ecommerce_ind
+      - name: Recommended
+        fields: []
+
+    VerificationRequest:
+      allOf:
+      - $ref: '#/components/schemas/BaseRequest'
+      - $ref: '#/components/schemas/CardInformation'
+      - $ref: '#/components/schemas/CardholderInformation'
+      - type: object
+        required:
+        - transaction_amount
+        - account_data_source
+        - moto_ecommerce_ind
+        properties:
+          transaction_type:
+            type: string
+            description: 'Verification transaction (A)'
+            enum:
+            - A
+            example: A
+          transaction_amount:
+            type: string
+            description: Must be 0.00 for verification
+            example: '0.00'
+            pattern: ^0\.00$
+          account_data_source:
+            type: string
+            enum:
+            - '@'
+          moto_ecommerce_ind:
+            type: string
+            description: 'Mail Order / Telephone Order / E-commerce indicator.
+
+              Common values:
+
+              - 1: MOTO (Mail Order/Telephone Order) - Single transaction
+
+              - 2: MOTO (Mail Order/Telephone Order) - Recurring
+
+              - 3: MOTO (Mail Order/Telephone Order) - Installment
+
+              - 7: E-commerce (Internet/Mobile)'
+            enum:
+            - Z
+            - '1'
+            - '2'
+            - '3'
+            - '5'
+            - '6'
+            - '7'
+            - '07'
+            - '8'
+            - A
+            maxLength: 2
+            example: '7'
+      x-parameterGroups:
+      - name: Required
+        fields:
+        - profile_id
+        - profile_key
+        - transaction_type
+        - transaction_amount
+        - account_data_source
+        - moto_ecommerce_ind
+        conditional: *id001
+      - name: Recommended
+        fields:
+        - card_exp_date
+        - cvv2
+        - cardholder_street_address
+        - cardholder_zip
+    DeleteCardRequest:
+      allOf:
+      - $ref: '#/components/schemas/BaseRequest'
+      - type: object
+        required:
+        - card_id
+        properties:
+          transaction_type:
+            type: string
+            description: 'Delete Permanent Token (X)'
+            enum:
+            - X
+            example: X
+          card_id:
+            type: string
+            description: Card ID (token) to delete
+            maxLength: 32
+      x-parameterGroups:
+      - name: Required
+        fields:
+        - profile_id
+        - profile_key
+        - transaction_type
+        - card_id
+      - name: Recommended
+        fields: []
+
+    RecurringSubscriptionRequest:
+      allOf:
+      - $ref: '#/components/schemas/BaseRequest'
+      - type: object
+        required:
+        - transaction_amount
+        - card_id
+        - card_on_file
+        - account_data_source
+        - merchant_initiated
+        - moto_ecommerce_ind
+        properties:
+          transaction_type:
+            type: string
+            description: 'Sale transaction (D) for recurring subscription'
+            enum:
+            - D
+            example: D
+          transaction_amount:
+            type: string
+            description: Amount to charge for this subscription payment
+            pattern: ^\d+\.\d{2}$
+            example: '49.99'
+          card_id:
+            type: string
+            description: Permanent token from prior transaction (required for recurring)
+            maxLength: 32
+            example: 8fc94e10b12130f4ab8a8ceeac40fc69
+          card_on_file:
+            type: string
+            description: 'Indicates this is a Card on File transaction. Required for recurring payments.'
+            enum:
+            - Y
+            example: Y
+          account_data_source:
+            type: string
+            description: 'Credential source. Required for CoF - indicates credentials obtained from file, not cardholder.'
+            enum:
+            - '@'
+            example: '@'
+          merchant_initiated:
+            type: string
+            description: 'Merchant-initiated transaction (MIT) indicator. Required for recurring/subscription transactions where merchant initiates without cardholder present.'
+            enum:
+            - Y
+            example: Y
+          transaction_id:
+            type: string
+            description: 'Transaction ID from initial authorization (when cardholder was present). Used for subsequent MIT transactions.'
+            maxLength: 32
+          moto_ecommerce_ind:
+            type: string
+            description: 'M103 = Recurring/Subscription payment (MIT)'
+            enum:
+            - M103
+            example: M103
+          retry_id:
+            type: string
+            maxLength: 16
+      x-parameterGroups:
+      - name: Required
+        description: 'Required fields for recurring subscription payments'
+        fields:
+        - profile_id
+        - profile_key
+        - transaction_type
+        - transaction_amount
+        - card_id
+        - card_on_file
+        - account_data_source
+        - merchant_initiated
+        - moto_ecommerce_ind
+      - name: Recommended
+        description: 'Strongly recommended for Card on File tracking'
+        fields:
+        - transaction_id
+
+    RecurringInstallmentRequest:
+      allOf:
+      - $ref: '#/components/schemas/BaseRequest'
+      - type: object
+        required:
+        - transaction_amount
+        - card_id
+        - card_on_file
+        - account_data_source
+        - merchant_initiated
+        - moto_ecommerce_ind
+        - payment_count
+        - recurring_payment_count
+        properties:
+          transaction_type:
+            type: string
+            description: 'Sale transaction (D) for recurring installment'
+            enum:
+            - D
+            example: D
+          transaction_amount:
+            type: string
+            description: Amount to charge for this installment payment
+            pattern: ^\d+\.\d{2}$
+            example: '99.99'
+          card_id:
+            type: string
+            description: Permanent token from prior transaction (required for recurring)
+            maxLength: 32
+            example: 8fc94e10b12130f4ab8a8ceeac40fc69
+          card_on_file:
+            type: string
+            description: 'Indicates this is a Card on File transaction. Required for recurring payments.'
+            enum:
+            - Y
+            example: Y
+          account_data_source:
+            type: string
+            description: 'Credential source. Required for CoF - indicates credentials obtained from file, not cardholder.'
+            enum:
+            - '@'
+            example: '@'
+          merchant_initiated:
+            type: string
+            description: 'Merchant-initiated transaction (MIT) indicator. Required for recurring/installment transactions where merchant initiates without cardholder present.'
+            enum:
+            - Y
+            example: Y
+          transaction_id:
+            type: string
+            description: 'Transaction ID from initial authorization (when cardholder was present). Used for subsequent MIT transactions.'
+            maxLength: 32
+          moto_ecommerce_ind:
+            type: string
+            description: 'M104 = Recurring/Installment payment (MIT)'
+            enum:
+            - M104
+            example: M104
+          payment_count:
+            type: string
+            description: 'Current payment number in installment series (e.g., "2" for 2nd payment)'
+            example: '2'
+          recurring_payment_count:
+            type: string
+            description: 'Total number of installments in the series (e.g., "12" for 12-month plan)'
+            example: '12'
+          retry_id:
+            type: string
+            maxLength: 16
+      x-parameterGroups:
+      - name: Required
+        description: 'Required fields for recurring installment payments'
+        fields:
+        - profile_id
+        - profile_key
+        - transaction_type
+        - transaction_amount
+        - card_id
+        - card_on_file
+        - account_data_source
+        - merchant_initiated
+        - moto_ecommerce_ind
+        - payment_count
+        - recurring_payment_count
+      - name: Recommended
+        description: 'Strongly recommended for Card on File tracking'
+        fields:
+        - transaction_id
+
+    InquiryRequest:
+      allOf:
+      - $ref: '#/components/schemas/BaseRequest'
+      - type: object
+        required:
+        - retry_id
+        properties:
+          transaction_type:
+            type: string
+            description: 'Inquiry transaction (I)'
+            enum:
+            - I
+            example: I
+          retry_id:
+            type: string
+            description: Retry ID from original transaction
+            maxLength: 16
+      x-parameterGroups:
+      - name: Required
+        fields:
+        - profile_id
+        - profile_key
+        - transaction_type
+        - retry_id
+      - name: Recommended
+        fields: []
+
+    AdvancedFields:
+      type: object
+      properties:
+        rctl_commercial_card:
+          type: string
+          description: Returns commercial card type identification
+          enum:
+          - Y
+          - y
+        rctl_account_balance:
+          type: string
+          description: Returns prepaid card balance (if offered by issuer)
+          enum:
+          - Y
+          - y
+        rctl_partial_auth:
+          type: string
+          description: Enable partial authorization
+          enum:
+          - Y
+          - y
+        rctl_product_level:
+          type: string
+          description: Returns product level information
+          enum:
+          - Y
+          - y
+        rctl_extended_avs:
+          type: string
+          description: Returns extended AVS information
+          enum:
+          - Y
+          - y
+        merchant_name:
+          type: string
+          description: DBA Name to appear on cardholder statement (* allowed, must
+            have static prefix)
+          maxLength: 25
+        merchant_phone:
+          type: string
+          description: Customer Service phone number (no dashes or special characters)
+          pattern: ^\d{10}$
+          maxLength: 10
+        merchant_category_code:
+          type: string
+          description: Merchant Category Code (SIC)
+          pattern: ^\d{4}$
+          maxLength: 4
+        merchant_city:
+          type: string
+          maxLength: 13
+        merchant_state:
+          type: string
+          maxLength: 3
+        merchant_zip:
+          type: string
+          maxLength: 9
+        recurring_pmt_num:
+          type: string
+          description: Payment number of this transaction
+          pattern: ^\d{1,2}$
+          maxLength: 2
+        recurring_pmt_count:
+          type: string
+          description: Total number of payments
+          pattern: ^\d{1,2}$
+          maxLength: 2
+        hotel_folio_number:
+          type: string
+          description: Hotel folio number
+          maxLength: 25
+        hotel_check_out_date:
+          type: string
+          description: Check-out date (MMDDYY)
+          pattern: ^\d{6}$
+        hotel_room_rate:
+          type: string
+          description: Daily room rate
+          pattern: ^\d+\.\d{2}$
+        hotel_room_tax:
+          type: string
+          description: Room tax amount
+          pattern: ^\d+\.\d{2}$
+        hotel_no_show:
+          type: string
+          description: No show indicator
+          enum:
+          - Y
+          - N
+        rental_agreement_number:
+          type: string
+          description: Rental agreement number
+          maxLength: 20
+        rental_date:
+          type: string
+          description: Rental date
+          pattern: ^\d{6}$
+        rental_return_date:
+          type: string
+          description: Return date
+          pattern: ^\d{6}$
+        rental_return_city:
+          type: string
+          description: Return city
+          maxLength: 20
+        rental_return_state:
+          type: string
+          description: Return state
+          maxLength: 2
+        rental_return_country:
+          type: string
+          description: Return country
+          maxLength: 2
+          maxLength: 32
+        payment_account_reference:
+          type: string
+          description: Payment Account Reference (AMEX=35 chars with all 9s, Other
+            cards=29 chars with all 9s)
+          maxLength: 35
+    TransactionResponse:
+      type: object
+      properties:
+        transaction_id:
+          type: string
+          description: Unique identifier for the transaction
+          example: 7f84a42eeb393eafb76b327ec62eb693
+        error_code:
+          type: string
+          description: 'Error/Response code:
+
+            - 000 = Approval
+
+            - 005 = Do Not Honor
+
+            - See full error code table in documentation
+
+            '
+          example: '000'
+        auth_response_text:
+          type: string
+          description: Authorization response message
+          example: Approval T40792
+        auth_code:
+          type: string
+          description: Authorization code (6 characters)
+          example: T40792
+        avs_result:
+          type: string
+          description: 'Address Verification Service result:
+
+            - 0 = AVS Error - Retry
+
+            - A = Address Match Only
+
+            - B = Address Match, Postal Code not verified
+
+            - C = No Match
+
+            - D = Address and Postal Code Match
+
+            - E = AVS Error - Ineligible
+
+            - F = Address and Postal Code Match (UK only)
+
+            - G = Non-US Issuer does not participate
+
+            - I = Address not verified, Postal Code not verified
+
+            - M = Address and Postal Code Match
+
+            - N = No Match
+
+            - P = Postal Code Match, Address not verified
+
+            - R = Issuer System Unavailable
+
+            - S = Service not Supported
+
+            - U = Address unavailable
+
+            - W = 9-digit Postal Code Match, Address no match
+
+            - X = Exact match, 9-digit Postal Code
+
+            - Y = Address and 5-digit Postal Code Match
+
+            - Z = 5-digit Postal Code Match, Address no match
+
+            '
+          example: '0'
+        cvv2_result:
+          type: string
+          description: 'CVV2 verification result:
+
+            - M = CVV2 Match
+
+            - N = CVV2 No Match
+
+            - P = Not Processed
+
+            - S = CVV2 should be on card but merchant indicates not present
+
+            - U = Issuer not certified
+
+            '
+        card_type:
+          type: string
+          description: Card type (Visa, Mastercard, Discover, Amex, etc.)
+        card_last_four:
+          type: string
+          description: Last 4 digits of card number
+        card_exp_date:
+          type: string
+          description: Card expiration date (MMYY)
+        partial_auth_indicator:
+          type: string
+          description: Partial authorization indicator
+        account_balance:
+          type: string
+          description: Account balance (for prepaid cards)
+        commercial_card:
+          type: string
+          description: 'Commercial card type:
+
+            - B = Business Card
+
+            - R = Corporate Card
+
+            - S = Purchasing Card
+
+            - 0 = Non-commercial card
+
+            '
+        product_level:
+          type: string
+          description: Product level code
+        extended_avs_result:
+          type: string
+          description: Extended AVS result details
+        payment_account_reference:
+          type: string
+          description: Payment Account Reference returned by processor
+        transaction_fee:
+          type: string
+          description: Transaction fee amount
+        batch_id:
+          type: string
+          description: Batch ID
+        batch_status:
+          type: string
+          description: Batch status
+        card_id:
+          type: string
+          description: Permanent token (stored card) identifier returned when store_card=Y
+            is used
+          maxLength: 32
+        batch_number:
+          type: string
+          description: Batch number returned for Batch Close responses
+          maxLength: 20
+      x-parameterGroups:
+      - name: Common
+        fields:
+        - transaction_id
+        - error_code
+        - auth_response_text
+      - name: When Provided
+        fields:
+        - auth_code
+        - avs_result
+        - cvv2_result
+        - card_id
+        - batch_number
+      - name: Other Fields
+        fields:
+        - account_balance
+        - batch_id
+        - batch_status
+        - card_exp_date
+        - card_last_four
+        - card_type
+        - commercial_card
+        - extended_avs_result
+        - partial_auth_indicator
+        - payment_account_reference
+        - product_level
+        - transaction_fee
+    Level3Fields:
+      type: object
+      description: Level 3 processing fields for commercial and purchase cards
+      properties:
+        customer_vat_registration:
+          type: string
+          description: Customer VAT registration number
+          maxLength: 13
+        supplier_vat_registration:
+          type: string
+          description: Supplier VAT registration number
+          maxLength: 13
+        customer_code:
+          type: string
+          description: Customer code
+          maxLength: 17
+        summary_commodity_code:
+          type: string
+          description: Summary commodity code
+          maxLength: 4
+        merchant_vat_registration:
+          type: string
+          description: Merchant VAT registration number
+          maxLength: 20
+        order_date:
+          type: string
+          description: Order date (YYMMDD)
+          pattern: ^\d{6}$
+        discount_amount:
+          type: string
+          description: Discount amount
+          pattern: ^\d+\.\d{2}$
+        freight_amount:
+          type: string
+          description: Freight/shipping amount
+          pattern: ^\d+\.\d{2}$
+        national_tax:
+          type: string
+          description: National tax amount
+          pattern: ^\d+\.\d{2}$
+        other_tax:
+          type: string
+          description: Other tax amount
+          pattern: ^\d+\.\d{2}$
+        vat_invoice_number:
+          type: string
+          description: VAT invoice reference number
+          maxLength: 15
+        vat_tax_amount:
+          type: string
+          description: VAT tax amount
+          pattern: ^\d+\.\d{2}$
+        vat_tax_rate:
+          type: string
+          description: VAT tax rate
+          pattern: ^\d+\.\d{2}$
+        line_item_count:
+          type: integer
+          description: Number of line items
+        line_items:
+          type: array
+          description: Array of line item details (separated by | delimiter in actual
+            request)
+          items:
+            type: object
+            properties:
+              commodity_code:
+                type: string
+                maxLength: 12
+              description:
+                type: string
+                maxLength: 35
+              product_code:
+                type: string
+                maxLength: 12
+              quantity:
+                type: string
+                pattern: ^\d+(\.\d+)?$
+              unit_of_measure:
+                type: string
+                maxLength: 3
+              unit_cost:
+                type: string
+                pattern: ^\d+\.\d{2}$
+              vat_tax_amount:
+                type: string
+                pattern: ^\d+\.\d{2}$
+              vat_tax_rate:
+                type: string
+                pattern: ^\d+\.\d{2}$
+              discount_amount:
+                type: string
+                pattern: ^\d+\.\d{2}$
+              line_item_total:
+                type: string
+                pattern: ^\d+\.\d{2}$
+        supplier_name:
+          type: string
+          maxLength: 40
+        supplier_address:
+          type: string
+          maxLength: 60
+        supplier_city:
+          type: string
+          maxLength: 40
+        supplier_state:
+          type: string
+          maxLength: 3
+        supplier_postal_code:
+          type: string
+          maxLength: 14
+        supplier_country:
+          type: string
+          maxLength: 3
+        customer_name:
+          type: string
+          maxLength: 40
+        customer_address:
+          type: string
+          maxLength: 60
+        customer_city:
+          type: string
+          maxLength: 40
+        customer_state:
+          type: string
+          maxLength: 3
+        customer_postal_code:
+          type: string
+          maxLength: 14
+        customer_country:
+          type: string
+          maxLength: 3
+    TemporaryTokenRequest:
+      allOf:
+      - $ref: '#/components/schemas/BaseRequest'
+      - type: object
+        required:
+        - card_number
+        properties:
+          transaction_type:
+            type: string
+            description: 'Temporary Token (T)'
+            enum:
+            - T
+            example: T
+          card_number:
+            type: string
+            description: Payment card number
+            example: '4012301230158'
+            minLength: 5
+            maxLength: 22
+            pattern: ^\d{5,22}$
+          card_exp_date:
+            type: string
+            description: Card expiration date, submit as MMYY
+            example: '1225'
+            pattern: ^\d{4}$
+            maxLength: 4
+      x-parameterGroups:
+      - name: Required
+        fields:
+        - profile_id
+        - profile_key
+        - transaction_type
+        - card_number
+      - name: Recommended
+        fields:
+        - card_exp_date
+x-error-codes:
+  visa:
+    '000': Approval
+    '005': Do Not Honor
+    '012': Invalid Transaction
+    '013': Invalid Amount
+    '014': Invalid Card Number
+    '015': Invalid Issuer
+    019: Re-enter Transaction
+    '021': Unable to Back Out Transaction
+    '023': Unacceptable Transaction Fee
+    '025': Unable to Locate Record
+    028: File Temporarily Unavailable
+    039: No Credit Account
+    '041': Lost Card
+    '043': Stolen Card
+    '046': Closed Account
+    '051': Insufficient Funds
+    '052': No Checking Account
+    '053': No Savings Account
+    '054': Expired Card
+    '055': Incorrect PIN
+    '056': No Card Record
+    '057': Transaction Not Permitted to Cardholder
+    058: Transaction Not Permitted on Terminal
+    '061': Exceeds Withdrawal Limit
+    '062': Restricted Card
+    '063': Security Violation
+    '065': Exceeds withdrawal frequency
+    068: Response Received Too Late
+    '075': PIN Try Exceeded
+    '076': Unable to Locate Previous Message
+    078: Blocked - First Use
+    082: Negative CAM, dCVV, iCVV, or CVV results
+    085: No Reason to Decline
+    091: Issuer or Switch Inoperative
+    092: Routing Error
+    093: Violation of Law
+    094: Duplicate Transaction
+    096: System Malfunction
+    0N4: Exceeds Issuer Withdrawal Limit
+    0N7: CVV2 Failure
+    0N0: Unable to Authorize
+    0P5: PIN Change/Unblock Request Declined
+    0Q1: Invalid Card Authentication Data
+    0R0: Stop Payment Order
+    0R1: Revocation of Authorization Order
+    0R3: Revocation of All Authorizations Order
+    0TA: Local Transaction; Time-Out at Issuer System Detected
+    0XA: Forward to Issuer
+    0XD: Forward to Issuer
+  mastercard:
+    '000': Approval
+    '003': 22 Mer Not Qual or Honor with Identification
+    '004': Not used at this time
+    '005': 22 Mer Not Qual or Do Not Honor
+    '012': 22 Mer Not Qual or Invalid Transaction
+    '013': 22 Mer Not Qual or Invalid Amount
+    '014': 22 Mer Not Qual or Invalid Card Number
+    '015': 22 Mer Not Qual or Invalid Issuer
+    019: 22 Mer Not Qual or Re-enter Transaction
+    '021': 22 Mer Not Qual or Unable to Back Out Transaction
+    '025': 22 Mer Not Qual or Unable to Locate Record On File
+    028: 22 Mer Not Qual or File Temporarily Unavailable
+    039: 22 Mer Not Qual or No Credit Account
+    '041': Lost Card - Pick Up (Fraud Account)
+    '043': Stolen Card - Pick Up (Fraud Account)
+    '046': Closed Account
+    '051': Insufficient Funds
+    '052': No Checking Account
+    '053': No Savings Account
+    '054': Expired Card
+    '055': Incorrect PIN
+    '056': No Card Record
+    '057': Function Not Permitted to Cardholder
+    058: Function Not Permitted to Merchant
+    '061': Exceeds Approval Amount Limit
+    '062': Restricted Card
+    '063': Security Violation
+    '065': Exceeds Withdrawal Frequency Limit
+    068: Response Received Too Late
+    '075': Allowable number of PIN-Entry tries exceeded - Card Locked
+    078: Blocked, First Used
+    079: Transaction Not Permitted to Acquirer/Terminal
+    082: Transaction Not Permitted to Acquirer/Terminal
+    083: Transaction Not Permitted to Acquirer/Terminal
+    085: No Reason to Decline
+    091: Issuer or Switch Inoperative
+    092: Routing Error
+    094: Duplicate Transaction
+    096: System Malfunction
+    0N0: Unable to Authorize
+    0N3: Cash Back Service Not Available
+    0N4: Exceeds Issuer Withdrawal Limit
+    0N7: CVV2 Failure
+    0P5: PIN Change/Unblock Request Declined
+    0Q1: Invalid Card Authentication Data
+    0R0: Stop Payment Order
+    0R1: Revocation of Authorization Order
+    0R3: Revocation of All Authorizations Order
+    0XA: Forward to Issuer
+    0XD: Forward to Issuer
+x-avs-codes:
+  '0': AVS Error - Retry, System unavailable or Timed out
+  A: Address Match Only
+  B: Address Match, Postal Code not verified
+  C: No Match
+  D: Address and Postal Code Match
+  E: AVS Error - Ineligible (not a mail/phone order)
+  F: Address and Postal Code Match (UK only)
+  G: Non-US Issuer does not participate
+  I: Address not verified, Postal Code not verified
+  M: Address and Postal Code Match
+  N: No Match
+  P: Postal Code Match, Address not verified
+  R: Issuer System Unavailable
+  S: Service not Supported
+  U: Address unavailable
+  W: 9-digit Postal Code Match, Address no match
+  X: Exact match, 9-digit Postal Code
+  Y: Address and 5-digit Postal Code Match
+  Z: 5-digit Postal Code Match, Address no match
+x-cvv-codes:
+  M: CVV2 Match
+  N: CVV2 No Match
+  P: Not Processed
+  S: CVV2 should be on card but merchant indicates not present
+  U: Issuer not certified
+x-test-cards:
+  visa:
+  - number: '4012301230121237'
+    description: Standard Visa test card
+  - number: '4012301230121245'
+    description: Visa - Approval for amounts less than $100
+  mastercard:
+  - number: '5424000000000015'
+    description: Standard Mastercard test card
+  discover:
+  - number: '6011000000000012'
+    description: Standard Discover test card
+  amex:
+  - number: '371449635398431'
+    description: Standard American Express test card

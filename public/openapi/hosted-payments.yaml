@@ -1,0 +1,635 @@
+openapi: 3.0.3
+info:
+  title: MerchantE Host Payments Page API
+  description: 'MerchantE''s Hosted Payments Page allows merchants to integrate a
+    secure payment checkout experience into their e-commerce websites. Customers can
+    checkout as guests, create payment accounts, or log in to make a payment.
+
+
+    ## Getting Started
+
+
+    Basic requirements:
+
+    - **Web Hosting**: Merchant must have a publicly available website. The Cascading
+    Style Sheet and company logo are hosted by the merchant.
+
+    - **HTML or plain text editor**: Form elements need to be added to existing or
+    new HTML pages.
+
+    - **Merchant Account**: Required to begin processing live transactions.
+
+    - **Submit Final Amount Only**: ME Hosted Checkout will only process the amount
+    sent in the payment_amount field. Shipping charges, local tax, etc. will need
+    to be accommodated before the transaction is submitted.
+
+
+    ## Transaction Flow
+
+
+    1. Customer is on merchant''s e-Commerce website and clicks Checkout
+
+    2. Customer is redirected to MerchantE Hosted Payment Page
+
+    3. Customer enters payment details and submits payment
+
+    4. If approved: Customer is presented with payment receipt and has the option
+    to return to merchant''s website
+
+    5. If declined: Customer is presented with generic payment decline and advised
+    to reach out to issuer for more details
+
+
+    ## Integration Steps
+
+
+    1. Obtain a profile ID once the merchant account setup has been completed
+
+    2. Modify or create HTML pages with ''buy now'' or ''checkout'' links or images
+
+    3. Insert Payment Page URL form in HTML
+
+    4. If necessary, test the form by processing a sale. Ensure that both response
+    URLs function properly.
+
+
+    ## Security Settings
+
+
+    These settings are intended for advanced integrations of ME Hosted Checkout, and
+    will require a server-side programming language to implement properly, such as
+    PHP, JSP, ASP, etc.
+
+
+    - **Security Code**: MD5 hash validation using Profile Key + Security Code + Transaction
+    Amount. When enabled, requests without valid transaction_key will be redirected
+    to cancel_url with resp_text=invalid_tran_key.
+
+    - **HTTP Authentication**: Optional Resp HTTP Username and Password for response
+    URL callbacks using standard HTTP authentication (BASIC + Base64 encoded username:password).
+
+    '
+  version: 1.0.0
+  contact:
+    name: MerchantE Support
+    url: https://merchante-solutions.com
+  license:
+    name: Copyright 2023 MerchantE, Inc.
+servers:
+- url: https://cert.hostedpayments.merchante.com/hpp
+  description: Certification/Testing Environment
+paths:
+  /checkout/sign-in:
+    post:
+      summary: Initiate Hosted Payment Page checkout
+      description: 'Redirects customer to MerchantE Hosted Payment Page for checkout.
+        This endpoint accepts form POST data to initiate the payment process.
+
+
+        The customer will be presented with options to:
+
+        - Checkout as guest (limited view of Hosted Payments)
+
+        - Create a payment account
+
+        - Log in to existing payment account
+
+        '
+      operationId: initiateCheckout
+      tags:
+      - Payment Request
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              required:
+              - profile_id
+              properties:
+                profile_id:
+                  type: string
+                  maxLength: 20
+                  description: 'Merchant Identifier (mandatory). Routes the customer
+                    specifically to your payment page.
+
+                    '
+                  example: xxxx4100006000500000001
+                payment_amount:
+                  type: string
+                  maxLength: 12
+                  format: numeric
+                  description: 'The amount of the transaction. Only necessary if you
+                    have the Custom Amount flag turned off, since in that scenario
+                    the payment amount will be sent across from your website to Hosted
+                    Payments.
+
+
+                    **Important**: If you do not send the amount when the Custom Amount
+                    flag is turned off, a hardcoded $0.00 amount will be sent when
+                    the customer navigates to the Hosted Payment Page and the customer
+                    will not be able to proceed with payment.
+
+                    '
+                  example: '500.00'
+                invoice_number:
+                  type: string
+                  maxLength: 17
+                  format: alphanumeric
+                  description: 'Custom Invoice Number field. Only necessary if you
+                    intend on sending an Invoice Number to Hosted Payments. If not,
+                    this will automatically be generated once the transaction is processed
+                    successfully.
+
+                    '
+                  example: INV-2023-001
+                client_reference_number:
+                  type: string
+                  maxLength: 96
+                  format: alphanumeric
+                  description: 'Custom Reference Number. Only necessary if you intend
+                    on sending a client reference number from your side to Hosted
+                    Payments. If not, this will automatically be generated once the
+                    transaction is processed successfully.
+
+                    '
+                  example: REF-12345
+                transaction_key:
+                  type: string
+                  description: 'MD5 hash for request validation when Security Code
+                    is enabled.
+
+
+                    **Calculation**: MD5(Profile Key + Security Code + Transaction
+                    Amount)
+
+
+                    The Profile Key is a security code generated by MerchantE. Required
+                    only when Security Code security feature is enabled in merchant
+                    settings.
+
+                    '
+                  example: 5d41402abc4b2a76b9719d911017c592
+              x-parameterGroups:
+              - name: Required
+                fields:
+                - profile_id
+              - name: Recommended
+                fields: []
+              - name: Others
+                fields:
+                - payment_amount
+                - invoice_number
+                - client_reference_number
+                - transaction_key
+            examples:
+              allOptionalFieldsSent:
+                summary: All optional information sent (Custom Amount OFF)
+                description: 'In this example where all optional information is sent,
+                  the Custom Amount is off. The Invoice and Ref Number fields are
+                  sent as part of the request.
+
+                  '
+                value:
+                  profile_id: '12345678901234567890'
+                  payment_amount: '500.00'
+                  invoice_number: INV-2023-001
+                  client_reference_number: REF-12345
+                  transaction_key: 5d41402abc4b2a76b9719d911017c592
+              noOptionalFieldsSent:
+                summary: No optional information sent (Custom Amount ON)
+                description: 'In this example where no Optional Information is sent,
+                  the Custom Amount is on. The Invoice and Ref Number fields are not
+                  sent as part of the request.
+
+                  '
+                value:
+                  profile_id: '12345678901234567890'
+              customAmountOn:
+                summary: Custom Amount turned on
+                description: 'In this example, the Custom Amount is turned on. The
+                  Invoice and Ref Number fields are sent as part of the request.
+
+                  '
+                value:
+                  profile_id: '12345678901234567890'
+                  invoice_number: INV-2023-001
+                  client_reference_number: REF-12345
+              customAmountOff:
+                summary: Custom Amount turned off
+                description: 'In this example, the Custom Amount is turned off. The
+                  Invoice and Ref Number fields are not sent as part of the request.
+
+                  '
+                value:
+                  profile_id: '12345678901234567890'
+                  payment_amount: '500.00'
+              withSecurityValidation:
+                summary: Request with security validation
+                description: Includes transaction_key for MD5 hash validation using
+                  PHP example from documentation
+                value:
+                  profile_id: '12345678901234567890'
+                  payment_amount: '500.00'
+                  transaction_key: 5d41402abc4b2a76b9719d911017c592
+      responses:
+        '302':
+          description: Redirect to Hosted Payment Page
+          headers:
+            Location:
+              schema:
+                type: string
+              description: URL to MerchantE Hosted Payment Page for customer checkout
+        '400':
+          description: Invalid request - missing required fields or invalid transaction_key
+          headers:
+            Location:
+              schema:
+                type: string
+              description: Redirect to cancel_url with resp_text=invalid_tran_key
+                (when Security Code validation fails)
+  /webhooks/response-credit-card:
+    post:
+      summary: Credit Card Transaction Response (Webhook)
+      description: 'HTTP POST callback sent to merchant''s configured response_url after a credit card transaction has been processed.
+
+
+        You can set your Response URL in the Advanced URL Management section of the Settings and Configuration Page in the Hosted Payments Admin.
+
+
+        This is a server-to-server callback and is not directly invoked by the merchant.
+
+        '
+      operationId: creditCardResponseWebhook
+      tags:
+      - Response Handling
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PostResponseCreditCard'
+      responses:
+        '200':
+          description: Merchant acknowledges receipt of transaction response
+  /webhooks/response-ach:
+    post:
+      summary: ACH Transaction Response (Webhook)
+      description: 'HTTP POST callback sent to merchant''s configured response_url after an ACH transaction has been processed.
+
+
+        You can set your Response URL in the Advanced URL Management section of the Settings and Configuration Page in the Hosted Payments Admin.
+
+
+        This is a server-to-server callback and is not directly invoked by the merchant.
+
+        '
+      operationId: achResponseWebhook
+      tags:
+      - Response Handling
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PostResponseACH'
+      responses:
+        '200':
+          description: Merchant acknowledges receipt of transaction response
+components:
+  schemas:
+    PostResponseCreditCard:
+      type: object
+      description: 'HTTP POST response sent to merchant''s response_url once a transaction
+        has been approved.
+
+
+        You can set your Response URL in the Advanced URL Management sections of the
+        Settings and Configuration Page in the Hosted Payments Admin section.
+
+
+        It is not necessary to use response data, though it can be helpful to store
+        transaction data, or for integration efforts.
+
+        '
+      x-parameterGroups:
+      - name: Common
+        fields:
+        - resp_code
+        - resp_text
+        - tran_id
+        - tran_amount
+        - tran_date
+      - name: When Provided
+        fields:
+        - auth_code
+        - card_id
+        - hpp_tran_id
+        - invoice_number
+        - client_ref_number
+      - name: Other Fields
+        fields:
+        - acct_number
+        - exp_date
+        - billing_address
+        - billing_zip
+        - currency_code
+        - tran_type
+        - retrieval_ref_number
+      properties:
+        tran_type:
+          type: string
+          description: The transaction type from the original request.
+          example: Sale
+        tran_amount:
+          type: string
+          description: The amount of the transaction.
+          example: '500.00'
+        invoice_number:
+          type: string
+          description: Identical to the request field of the same name.
+          example: ''
+        currency_code:
+          type: string
+          description: Currency code. Defaults to 840 – USD.
+          default: USD
+          example: USD
+        client_ref_number:
+          type: string
+          description: Identical to the request field of the same name.
+          example: ''
+        acct_number:
+          type: string
+          description: Truncated card or bank account number.
+          example: 411111XXXXXX1111
+        exp_date:
+          type: string
+          description: 'Cardholder expiration date.
+
+
+            Format: MMYY
+
+            '
+          example: '1122'
+        billing_address:
+          type: string
+          description: Street address entered by the cardholder during checkout.
+          example: '123'
+        billing_zip:
+          type: string
+          description: ZIP Code entered by the cardholder during checkout.
+          example: '12345'
+        retrieval_ref_number:
+          type: string
+          description: 12-digit MerchantE generated reference number.
+          example: ''
+        auth_code:
+          type: string
+          description: Authorization code provided by the issuing bank.
+          example: T9939 H
+        resp_code:
+          type: string
+          description: At this time, resp_code will always be 000 indicating an approved
+            sale.
+          example: '000'
+        resp_text:
+          type: string
+          description: A textual response for the transaction result.
+          example: ApprovalT9939H
+        tran_id:
+          type: string
+          description: Transaction identifier.
+          example: e0266d9ceaf234dd99427aebe1a13393
+        tran_date:
+          type: string
+          description: 'Timestamp of the transaction.
+
+
+            Format: MM/DD/YYYY HH:MM:SS AM/PM
+
+            '
+          example: Fri Mar 27 17:42:42 UTC 2020
+        card_id:
+          type: string
+          description: The returned value is the token for the card which was stored.
+          example: ''
+        hpp_tran_id:
+          type: string
+          description: Hosted Payment Page transaction identifier.
+          example: '1971'
+      example:
+        tran_date: Fri Mar 27 17:42:42 UTC 2020
+        acct_number: 411111XXXXXX1111
+        tran_amount: '500.00'
+        tran_type: Sale
+        billing_address: '123'
+        tran_id: e0266d9ceaf234dd99427aebe1a13393
+        currency_code: USD
+        auth_code: T9939 H
+        resp_text: ApprovalT9939H
+        client_ref_number: ''
+        retrieval_ref_number: ''
+        hpp_tran_id: '1971'
+        billing_zip: '12345'
+        resp_code: '000'
+        exp_date: '1122'
+        invoice_number: ''
+    PostResponseACH:
+      type: object
+      description: HTTP POST response sent to merchant's response_url after ACH transaction
+      x-parameterGroups:
+      - name: Common
+        fields:
+        - resp_code
+        - resp_text
+        - tran_id
+        - amount
+      - name: When Provided
+        fields:
+        - ref_num
+        - cust_name
+      - name: Other Fields
+        fields:
+        - auth_type
+        - account_type
+        - ip_address
+        - ach_request
+        - transaction_type
+        - account_num
+        - profile_key
+        - profile_id
+        - transit_num
+      properties:
+        auth_type:
+          type: string
+          description: Authentication type
+          example: WEB
+        amount:
+          type: string
+          description: Transaction amount
+          example: '500.00'
+        account_type:
+          type: string
+          description: Account type (S=Savings, C=Checking)
+          example: S
+          enum:
+          - S
+          - C
+        tran_id:
+          type: string
+          description: Transaction identifier
+          example: '1991'
+        ip_address:
+          type: string
+          description: IP address of transaction origin
+          example: 127.0.0.1
+          format: ipv4
+        ach_request:
+          type: string
+          description: ACH request type
+          example: SALE
+        transaction_type:
+          type: string
+          description: Transaction type
+          example: H
+        ref_num:
+          type: string
+          description: Reference number
+          example: ''
+        resp_text:
+          type: string
+          description: Response text
+          example: ACH IP Address Invalid
+        account_num:
+          type: string
+          description: Truncated account number
+          example: XXXXXX4738
+        profile_key:
+          type: string
+          description: Merchant profile key
+          example: yyyy
+        profile_id:
+          type: string
+          description: Merchant profile identifier
+          example: xxxx4100006000500000001
+        transit_num:
+          type: string
+          description: Truncated routing/transit number
+          example: XXXXX0399
+        resp_code:
+          type: string
+          description: Response code
+          example: '811'
+        cust_name:
+          type: string
+          description: Customer name
+          example: name
+      example:
+        auth_type: WEB
+        amount: '500.00'
+        account_type: S
+        tran_id: '1991'
+        ip_address: 127.0.0.1
+        ach_request: SALE
+        transaction_type: H
+        ref_num: ''
+        resp_text: ACH IP Address Invalid
+        account_num: XXXXXX4738
+        profile_key: yyyy
+        profile_id: xxxx4100006000500000001
+        transit_num: XXXXX0399
+        resp_code: '811'
+        cust_name: name
+    SecurityHashComponents:
+      type: object
+      description: 'Components used to generate MD5 hash for transaction_key security
+        validation.
+
+
+        To validate a request, create an MD5 hash of the following fields (in this
+        order):
+
+        1. Profile Key - A security code generated by MerchantE
+
+        2. Security Code
+
+        3. Transaction Amount
+
+
+        The result of this MD5 hash then needs to be sent in the field transaction_key.
+
+        '
+      required:
+      - profile_key
+      - security_code
+      - transaction_amount
+      properties:
+        profile_key:
+          type: string
+          description: A security code generated by MerchantE
+          example: EslVInonBTrSMXZzQapRPPQQwVvjAGgi
+        security_code:
+          type: string
+          description: The Security Code is a password used to secure requests to
+            ME Hosted Checkout
+          example: test123
+        transaction_amount:
+          type: string
+          description: Transaction amount (must match payment_amount in request)
+          example: '0.03'
+      example:
+        profile_key: EslVInonBTrSMXZzQapRPPQQwVvjAGgi
+        security_code: test123
+        transaction_amount: '0.03'
+  examples:
+    CreditCardResponseExample:
+      summary: Post Response for a Sales Transaction using a Credit Card
+      description: The following example response message is for a credit card sales
+        transaction.
+      value:
+        tran_date: Fri Mar 27 17:42:42 UTC 2020
+        acct_number: 411111XXXXXX1111
+        tran_amount: '500.00'
+        tran_type: Sale
+        billing_address: '123'
+        tran_id: e0266d9ceaf234dd99427aebe1a13393
+        currency_code: USD
+        auth_code: T9939 H
+        resp_text: ApprovalT9939H
+        client_ref_number: ''
+        retrieval_ref_number: ''
+        hpp_tran_id: '1971'
+        billing_zip: '12345'
+        resp_code: '000'
+        exp_date: '1122'
+        invoice_number: ''
+    ACHResponseExample:
+      summary: Post Response for a Sales Transaction using ACH
+      description: The following response message is for an ACH sales transaction.
+      value:
+        auth_type: WEB
+        amount: '500.00'
+        account_type: S
+        tran_id: '1991'
+        ip_address: 127.0.0.1
+        ach_request: SALE
+        transaction_type: H
+        ref_num: ''
+        resp_text: ACH IP Address Invalid
+        account_num: XXXXXX4738
+        profile_key: yyyy
+        profile_id: xxxx4100006000500000001
+        transit_num: XXXXX0399
+        resp_code: '811'
+        cust_name: name
+tags:
+- name: Payment Request
+  description: Operations for initiating hosted payment page checkout
+- name: Response Handling
+  description: "HTTP POST responses sent to merchant's configured response_url once\
+    \ a transaction has been approved. \n\nYou can set your Response URL in the Advanced\
+    \ URL Management sections of the Settings and Configuration Page in the Hosted\
+    \ Payments Admin section.\n"
+externalDocs:
+  description: Contact us
+  url: https://merchante.atlassian.net/servicedesk/customer/portal/12/create/101

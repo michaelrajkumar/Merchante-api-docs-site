@@ -1,0 +1,962 @@
+openapi: 3.0.3
+info:
+  title: MerchantE Account Updater Service (AUS) API
+  description: |
+    # MerchantE Account Updater Service (AUS) API Specification
+
+    **Version:** 3.0 (March 2024)
+    **Document Date:** March 2024
+
+    ## Overview
+
+    The MerchantE (ME) Account Updater Service (AUS) helps merchants who do installment, recurring, or on-demand billing obtain updated credit card expiration dates and/or account numbers.
+
+    ### What Gets Updated
+    - Expiration date changes
+    - Card reissued with new account number
+    - Account closed status
+
+    ### Card Association Programs
+    - **VAU** - Visa Account Updater
+    - **ABU** - MasterCard Automatic Billing Updater
+    - **DAU** - Discover Network Account Updater
+
+    ### Transmission Methods
+    1. API Method - Programmatic upload/download
+    2. Web Interface - Manual upload through ME Web Reporting
+
+    ### Critical Timelines
+    - Response File Availability: 4 calendar days from posting
+    - Activity Table Retention: 30 calendar days
+    - Typical Processing Time: Within 24 hours
+
+    ### Email Notifications
+    All emails from: accountupdater@merchante-solutions.com
+
+    ## Company Information
+    - **Company:** Merchant eSolutions, Inc.
+    - **Address:** 1150 Sanctuary Parkway, Suite 300, Alpharetta, GA 30009
+    - **Copyright:** ©2024 Merchant eSolutions, Inc.
+    - **Website:** www.merchante.com
+    - **Support:** 888-288-2692 | help@merchante.com
+
+    ## Banking Relationships
+    Registered Agent of KeyBank, Cleveland, OH, and registered ISO/MSP of Synovus Bank, Columbus, GA and FFB, Fresno, CA.
+
+    ## File Format Requirements
+    **CRITICAL:** All fields must be exact length, padded with trailing spaces.
+
+  version: '100000'
+  contact:
+    name: MerchantE 24-hour Help Desk
+    email: help@merchante.com
+    url: https://www.merchante.com
+  x-support:
+    phone: '888-288-2692'
+    hours: 24/7
+
+servers:
+  - url: https://test.merchante-solutions.com/srv/api
+    description: Test Server
+
+tags:
+  - name: File Operations
+    description: API operations for uploading, checking status, and downloading AUS files
+  - name: Request File Format
+    description: Fixed-width file format specifications for request files
+  - name: Response File Format
+    description: Fixed-width file format specifications for response files
+  - name: Testing
+    description: Test card data and certification process
+
+paths:
+  /ausUpload:
+    post:
+      tags: [File Operations]
+      summary: Upload AUS Request File
+      description: |
+        Upload request file using multipart/form-data (RFC-1867).
+
+        File must contain: Header (H1) + Detail Records (D1/D2) + Trailer (T1)
+
+        **CRITICAL:** All fields must be exact length, padded with trailing spaces.
+
+        **Response Format:** URL-encoded name=value pairs in text/plain body.
+      operationId: uploadRequestFile
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/UploadRequest'
+      responses:
+        '200':
+          description: |
+            Upload response in URL-encoded format (application/x-www-form-urlencoded style in text/plain body).
+
+            Success includes reqfId. Errors include rspCode and rspMessage only.
+          content:
+            text/plain:
+              schema:
+                $ref: '#/components/schemas/UploadResponse'
+              examples:
+                success:
+                  summary: Successful upload
+                  value: "rspCode=0&rspMessage=Upload+successful&reqfId=123456789012"
+                authError:
+                  summary: Authentication error (code 2)
+                  value: "rspCode=2&rspMessage=Authentication+error%2C+userId+or+userPass+incorrect"
+                uploadError:
+                  summary: Upload error (code 3)
+                  value: "rspCode=3&rspMessage=Upload+error%2C+upload+data+is+not+accepted"
+                invalidParam:
+                  summary: Invalid parameter (code 4)
+                  value: "rspCode=4&rspMessage=Invalid+parameter+xxx"
+                missingParam:
+                  summary: Missing parameter (code 5)
+                  value: "rspCode=5&rspMessage=Missing+parameter"
+                merchantError:
+                  summary: AUS merchant ID error (code 100)
+                  value: "rspCode=100&rspMessage=AUS+merchant+ID+error"
+                systemError:
+                  summary: System error (code 1)
+                  value: "rspCode=1&rspMessage=System+error%2C+contact+ME"
+
+  /ausStatus:
+    get:
+      tags: [File Operations]
+      summary: Check File Status
+      description: |
+        Query status of request files and availability of response files.
+
+        Returns indexed status sets (_0, _1, _2, etc.) for multiple files.
+
+        **Status Types:**
+        - PENDING - Request file received, response pending
+        - FAILED - Request file generated errors while being processed
+        - SUCCESS - Response file received
+
+        **Filter Options:**
+        - ALL - All available response files plus all pending request files (default)
+        - RESPONSE - All available response files
+        - NEW - All available response files that have not previously been downloaded
+        - ERROR - Any request files that have an error status
+      operationId: getFileStatus
+      x-parameterGroups:
+        - name: Required
+          fields:
+            - userId
+            - userPass
+            - merchId
+        - name: Others
+          fields:
+            - statusFilter
+            - reqfId
+      parameters:
+        - name: userId
+          in: query
+          required: true
+          description: User login name
+          schema:
+            type: string
+            maxLength: 75
+        - name: userPass
+          in: query
+          required: true
+          description: User login password
+          schema:
+            type: string
+            maxLength: 32
+            format: password
+        - name: merchId
+          in: query
+          required: true
+          description: ME merchant number, must be linked to userId in AUS system
+          schema:
+            type: string
+            maxLength: 32
+        - name: statusFilter
+          in: query
+          required: false
+          description: Optional filter for returned statuses
+          schema:
+            type: string
+            maxLength: 16
+            enum: [ALL, RESPONSE, NEW, ERROR]
+            default: ALL
+        - name: reqfId
+          in: query
+          required: false
+          description: Optional. Returns all response files associated with the indicated request file
+          schema:
+            type: string
+            maxLength: 12
+            pattern: '^\d{1,12}$'
+      responses:
+        '200':
+          description: |
+            Status inquiry response in URL-encoded format.
+
+            Contains indexed parameter sets (_0, _1, etc.) when multiple files returned.
+          content:
+            text/plain:
+              schema:
+                $ref: '#/components/schemas/StatusResponse'
+              examples:
+                singleSuccess:
+                  summary: Single file with response available
+                  value: "rspCode=0&rspMessage=OK&statusCount=1&reqfId_0=123456&reqfName_0=test_file.txt&status_0=SUCCESS&rspfId_0=987654&dlCount_0=0"
+                multipleFiles:
+                  summary: Multiple files in response
+                  value: "rspCode=0&rspMessage=OK&statusCount=2&reqfId_0=123456&reqfName_0=file1.txt&status_0=SUCCESS&rspfId_0=987654&dlCount_0=1&reqfId_1=123457&reqfName_1=file2.txt&status_1=PENDING"
+                pending:
+                  summary: File still pending
+                  value: "rspCode=0&rspMessage=OK&statusCount=1&reqfId_0=123456&reqfName_0=test_file.txt&status_0=PENDING"
+                failed:
+                  summary: File processing failed
+                  value: "rspCode=0&rspMessage=OK&statusCount=1&reqfId_0=123456&reqfName_0=test_file.txt&status_0=FAILED"
+                statusFilterError:
+                  summary: Invalid status filter (code 101)
+                  value: "rspCode=101&rspMessage=AUS+status+error%2C+the+statusFilter+value+sent+was+invalid"
+
+  /ausDownload:
+    get:
+      tags: [File Operations]
+      summary: Download Response File
+      description: |
+        Download response file using rspfId from status inquiry.
+
+        **CRITICAL:** Files available for 4 calendar days only. After removal, files cannot be recovered and request must be resubmitted.
+
+        **Success:** Returns file data with Content-Disposition header indicating filename.
+
+        **Error:** Returns URL-encoded error response (rspCode + rspMessage).
+
+        Client must detect response type by checking for Content-Disposition header.
+      operationId: downloadResponseFile
+      x-parameterGroups:
+        - name: Required
+          fields:
+            - userId
+            - userPass
+            - merchId
+            - rspfId
+      parameters:
+        - name: userId
+          in: query
+          required: true
+          description: User login name for ME web system
+          schema:
+            type: string
+            maxLength: 75
+        - name: userPass
+          in: query
+          required: true
+          description: User login password for ME web system
+          schema:
+            type: string
+            maxLength: 32
+            format: password
+        - name: merchId
+          in: query
+          required: true
+          description: ME merchant number, must be linked to userId in AUS system
+          schema:
+            type: string
+            maxLength: 32
+        - name: rspfId
+          in: query
+          required: true
+          description: ID of response file to download (from status inquiry response)
+          schema:
+            type: string
+            maxLength: 12
+            pattern: '^\d{1,12}$'
+      responses:
+        '200':
+          description: |
+            Either response file data (success) or error response (failure).
+
+            **Success:** Content-Disposition header present with filename.
+            **Error:** No Content-Disposition header; body contains rspCode and rspMessage.
+          headers:
+            Content-Disposition:
+              description: Present only on success. Format - attachment; filename="rsp-XXXXXX-N.txt"
+              schema:
+                type: string
+                example: 'attachment; filename="rsp-911146-1.txt"'
+          content:
+            text/plain:
+              schema:
+                oneOf:
+                  - $ref: '#/components/schemas/AUSResponseFile'
+                  - $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                successFile:
+                  summary: Successful file download (check Content-Disposition header)
+                  value: |
+                    H1100000941000057778
+                    D1VISA4111111111111111                  1101VISA4111111111111111                  1207NEWEXP  02
+                    T1000001
+                invalidFileId:
+                  summary: Invalid response file ID (code 102)
+                  value: "rspCode=102&rspMessage=AUS+response+file+ID+invalid"
+                authError:
+                  summary: Authentication error (code 2)
+                  value: "rspCode=2&rspMessage=Authentication+error"
+
+components:
+  schemas:
+    UploadRequest:
+      type: object
+      description: |
+        Request parameters for uploading an AUS request file.
+
+        Per PDF Page 10 - Upload file request parameters.
+      required:
+        - userId
+        - userPass
+        - merchId
+        - file
+      x-parameterGroups:
+        - name: Required
+          fields:
+            - userId
+            - userPass
+            - merchId
+            - file
+        - name: Recommended
+          fields: []
+        - name: Others
+          fields: []
+      properties:
+        userId:
+          type: string
+          description: User login name
+          maxLength: 75
+          example: ausmerchant
+        userPass:
+          type: string
+          description: User login password
+          maxLength: 32
+          format: password
+          example: SecureP@ss123
+        merchId:
+          type: string
+          description: ME merchant number, must be linked to userId in AUS system
+          maxLength: 32
+          example: '941000057778'
+        file:
+          type: string
+          format: binary
+          description: |
+            AUS request file containing Header (H1) + Detail Records (D1/D2) + Trailer (T1).
+
+            All fields must be exact length, padded with trailing spaces.
+
+    UploadResponse:
+      type: object
+      description: |
+        Upload response parameters (URL-encoded in text/plain body).
+
+        Per PDF Page 10 - Upload file response parameters.
+
+        Note: reqfId only present on success (rspCode=0).
+      x-parameterGroups:
+        - name: Common
+          fields:
+            - rspCode
+            - rspMessage
+        - name: When Provided
+          fields:
+            - reqfId
+      properties:
+        rspCode:
+          type: string
+          description: Response code, 0 = OK, see error table
+          maxLength: 4
+          example: "0"
+        rspMessage:
+          type: string
+          description: Response message
+          maxLength: 200
+          example: "Upload successful"
+        reqfId:
+          type: string
+          description: AUS system generated request file ID (only on success)
+          maxLength: 12
+          pattern: '^\d{1,12}$'
+          example: "123456789012"
+
+    StatusResponse:
+      type: object
+      description: |
+        Status inquiry response parameters (URL-encoded in text/plain body).
+
+        Per PDF Pages 11-12 - Status inquiry response parameters.
+
+        Contains indexed parameter sets (_0, _1, etc.) for multiple files.
+        The 'n' suffix indicates the index starting from 0.
+      x-parameterGroups:
+        - name: Common
+          fields:
+            - rspCode
+            - rspMessage
+            - statusCount
+        - name: When Provided
+          fields:
+            - reqfId_n
+            - reqfName_n
+            - status_n
+            - rspfId_n
+            - dlCount_n
+      properties:
+        rspCode:
+          type: string
+          description: Response code, 0 = OK
+          maxLength: 4
+        rspMessage:
+          type: string
+          description: Response message
+          maxLength: 200
+        statusCount:
+          type: string
+          description: Number of status parameter sets in this response
+          maxLength: 4
+        reqfId_n:
+          type: string
+          description: AUS system generated request file ID (indexed)
+          maxLength: 12
+        reqfName_n:
+          type: string
+          description: Request file name (indexed)
+          maxLength: 64
+        status_n:
+          type: string
+          description: File status (indexed) - PENDING, FAILED, or SUCCESS
+          maxLength: 16
+          enum: [PENDING, FAILED, SUCCESS]
+        rspfId_n:
+          type: string
+          description: Response file ID (indexed) - only present if response available
+          maxLength: 12
+        dlCount_n:
+          type: string
+          description: Download count (indexed) - only present if response available. 0 indicates new file.
+          maxLength: 4
+
+    ErrorResponse:
+      type: object
+      description: |
+        Error response for download failures (URL-encoded in text/plain body).
+
+        Per PDF Page 12 - Download error response.
+      required:
+        - rspCode
+        - rspMessage
+      x-parameterGroups:
+        - name: Common
+          fields:
+            - rspCode
+            - rspMessage
+      properties:
+        rspCode:
+          type: string
+          description: Response code (see error table)
+          maxLength: 4
+        rspMessage:
+          type: string
+          description: Response message
+          maxLength: 200
+
+    AUSResponseFile:
+      type: string
+      description: |
+        Fixed-width AUS response file containing:
+        - Header Record (H1): 40 characters
+        - Detail Records (D1/D2): 124 characters each
+        - Trailer Record (T1): 8 characters
+
+        Line endings separate records.
+
+    TestCardData:
+      type: object
+      description: |
+        ## Complete Test Card Table for Certification
+
+        **Test Mode:** No data sent to associations. Only specific test values produce responses.
+
+        **Card Store Testing:** Create new Card ID for each test returning new card number.
+
+        | Card Type | Card Number | Source | Response | New Card | New Exp |
+        |-----------|-------------|--------|----------|----------|---------|
+        | VISA | 4805000000000009 | VAU | CLOSED | - | No |
+        | (same) | (same) | ABU | NEWACCT | 5133272000000046 | Yes |
+        | VISA | 4805000000000017 | VAU | NEWACCT | 4805000000000058 | Yes |
+        | VISA | 4805000000000033 | VAU | NEWEXP | 4805000000000033 | Yes |
+        | VISA | 4805000000000041 | VAU | CLOSED | - | No |
+        | MC | 5133272000000053 | ABU | CLOSED | - | No |
+        | (same) | (same) | VAU | NEWACCT | 4805000000000058 | Yes |
+        | MC | 5133272000000004 | ABU | NEWACCT | 5133272000000012 | Yes |
+        | MC | 5133272000000020 | ABU | NEWEXP | 5133272000000020 | Yes |
+        | MC | 5133272000000038 | ABU | CLOSED | - | No |
+        | DISC | 6011000000000004 | DAU | NEWACCT | 6011000000000012 | Yes |
+        | DISC | 6011000000000020 | DAU | CLOSED | - | No |
+        | DISC | 6011000000000038 | DAU | NEWEXP | 6011000000000038 | Yes |
+        | DISC | 6011000000000046 | DAU | CALL | - | No |
+        | DISC | 6011000000000053 | DAU | OVERRIDE | 6011000000000061 | Yes |
+
+        **Dual Response Cards (Card Type Switch):**
+        - 4805000000000009: VAU CLOSED + ABU NEWACCT (Visa→MC)
+        - 5133272000000053: ABU CLOSED + VAU NEWACCT (MC→Visa)
+
+        **Testing Notes:**
+        - Exp dates can be any valid YYMM in test mode
+        - Response exp dates generated dynamically
+        - Card Store ID returns truncated: 480500xxxxxx0058
+        - Multiple tests need new Card ID each time
+
+x-file-formats:
+  request-file-header:
+    description: |
+      ## Header Record (H1) - Request File
+
+      Total: 40 characters + line ending
+
+      | Pos | Field | Len | Format | Value |
+      |-----|-------|-----|--------|-------|
+      | 1-2 | Record Type | 2 | AN | "H1" |
+      | 3-8 | Version ID | 6 | AN | "100000" |
+      | 9-40 | Merchant ID | 32 | AN | ME Merchant # (pad spaces) |
+
+      Example: `H1100000941000057778                    `
+
+  request-file-detail-d1:
+    description: |
+      ## Detail Record (D1) - Full Card Numbers
+
+      Total: 74 characters + line ending
+
+      | Pos | Field | Len | Format | Description |
+      |-----|-------|-----|--------|-------------|
+      | 1-2 | Record Type | 2 | AN | "D1" |
+      | 3-6 | Account Type | 4 | AN | "VISA", "MC  ", "DISC" |
+      | 7-38 | Account Number | 32 | AN | Card number (pad) |
+      | 39-42 | Expiration | 4 | N | YYMM |
+      | 43-74 | Discretionary | 32 | AN | Optional (pad) |
+
+      Example: `D1VISA4111111111111111                  1101                                `
+
+  request-file-detail-d2:
+    description: |
+      ## Detail Record (D2) - Card Store ID
+
+      Total: 74 characters + line ending
+
+      Same as D1 but:
+      - Record Type: "D2"
+      - Account Number: Card Store ID (exactly 32 chars, no padding needed)
+      - Expiration: YYMM or spaces (ME retrieves from stored card data)
+
+      Example: `D2VISA258316d09edc34c7b49c11324f37e7ef1101                                `
+
+  request-file-trailer:
+    description: |
+      ## Trailer Record (T1)
+
+      Total: 8 characters + line ending
+
+      | Pos | Field | Len | Format | Description |
+      |-----|-------|-----|--------|-------------|
+      | 1-2 | Record Type | 2 | AN | "T1" |
+      | 3-8 | Record Count | 6 | N | Detail count (zero-pad) |
+
+      Example: `T1000004`
+
+  response-file-header:
+    description: |
+      ## Header Record (H1) - Response File
+
+      Total: 40 characters + line ending
+
+      | Pos | Field | Len | Format | Value |
+      |-----|-------|-----|--------|-------|
+      | 1-2 | Record Type | 2 | AN | "H1" |
+      | 3-8 | Version ID | 6 | AN | "100000" |
+      | 9-40 | Merchant ID | 32 | AN | ME Merchant # (pad spaces) |
+
+  response-file-detail-d1:
+    description: |
+      ## Response Detail (D1) - Full Card Numbers
+
+      Total: 124 characters + line ending
+
+      | Pos | Field | Len | Format | Description |
+      |-----|-------|-----|--------|-------------|
+      | 1-2 | Record Type | 2 | AN | "D1" |
+      | 3-6 | Old Account Type | 4 | AN | Original card type (VISA/MC/DISC) |
+      | 7-38 | Old Account Number | 32 | AN | Original card # |
+      | 39-42 | Old Expiration Date | 4 | N | Original YYMM |
+      | 43-46 | New Account Type | 4 | AN | New type or spaces |
+      | 47-78 | New Account Number | 32 | AN | New # or spaces |
+      | 79-82 | New Expiration Date | 4 | N | New YYMM or spaces |
+      | 83-90 | Response Code | 8 | AN | Update status (see response codes) |
+      | 91-92 | Response Source | 2 | AN | 01=MES, 02=VAU, 03=ABU, 04=DAU |
+      | 93-124 | Discretionary Data | 32 | AN | From request (echoed back) |
+
+      **Field Length Calculation:** 2+4+32+4+4+32+4+8+2+32 = 124 characters
+
+  response-file-detail-d2:
+    description: |
+      ## Response Detail (D2) - Card Store ID
+
+      Total: 124 characters + line ending
+
+      Same structure as D1 but:
+      - Record Type: "D2"
+      - Old Account Number: Card Store ID (32 chars)
+      - New Account Number: TRUNCATED card# (first6+xxxxxx+last4) or spaces
+
+      Example truncated format: `411111xxxxxx1111                `
+
+      **Note:** Full card data is automatically updated in token storage.
+
+  response-file-trailer:
+    description: |
+      ## Trailer Record (T1) - Response File
+
+      Total: 8 characters + line ending
+
+      | Pos | Field | Len | Format | Description |
+      |-----|-------|-----|--------|-------------|
+      | 1-2 | Record Type | 2 | AN | "T1" |
+      | 3-8 | Record Count | 6 | N | Detail count (zero-pad) |
+
+x-response-codes:
+  update-codes:
+    description: |
+      ## Update Codes (Changes Made)
+
+      | Code | Description |
+      |------|-------------|
+      | NEWACCT | Account number update - new card number issued |
+      | NEWEXP | Expiration date update - new expiration date |
+      | OVERRIDE | Correction to a previous response |
+
+  no-update-codes:
+    description: |
+      ## No Update Codes
+
+      | Code | Description |
+      |------|-------------|
+      | GOOD | Match found, no change needed |
+      | CLOSED | Account closed, no new number assigned |
+      | CALL | Contact customer advisory |
+
+  error-codes:
+    description: |
+      ## Error/Non-Match Codes
+
+      | Code | Description |
+      |------|-------------|
+      | NPBIN | Non-participating BIN |
+      | NOMATCH | Participating BIN, no match found |
+      | ACCTERR | Non-V/MC account number, Bad account number, or Bad check digit |
+      | EXPERR | Bad expiration date |
+      | MERCHERR | Unregistered merchant |
+
+  source-codes:
+    description: |
+      ## Response Sources
+
+      | Code | Source | Description |
+      |------|--------|-------------|
+      | 01 | MES | MerchantE System |
+      | 02 | VAU | Visa Account Updater |
+      | 03 | ABU | MasterCard Automatic Billing Updater |
+      | 04 | DAU | Discover Network Account Updater |
+
+x-api-error-codes:
+  description: |
+    ## API Error Codes
+
+    Per PDF Pages 12-13.
+
+    | Code | Description |
+    |------|-------------|
+    | 0 | OK, operation successful |
+    | 1 | System error, contact ME |
+    | 2 | Authentication error, userId or userPass incorrect |
+    | 3 | Upload error, upload data is not accepted by the requested operation, upload file data was missing or failed to be delivered or the upload filename was missing |
+    | 4 | Invalid parameter xxx, the parameter indicated is invalid for the operation requested |
+    | 5 | Missing parameter, a required parameter was missing from the request |
+    | 100 | AUS merchant ID error, the supplied merchant ID was not valid in the AUS system |
+    | 101 | AUS status error, the statusFilter value sent was invalid |
+    | 102 | AUS response file ID invalid |
+
+x-webhooks:
+  responseFileAvailable:
+    post:
+      summary: Response File Available Notification
+      description: |
+        Email notification sent when response file is posted.
+
+        **From:** accountupdater@merchante-solutions.com
+        **Subject:** ME Account Updater Response File Available
+
+        **CRITICAL:** Response files available for 4 calendar days only. Retrieve immediately.
+
+        DO NOT REPLY - Automated message.
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                fileId:
+                  type: string
+                  example: '911169'
+                fileName:
+                  type: string
+                  example: 'rsp-911146-1.txt'
+                responseDate:
+                  type: string
+                  format: date-time
+
+  requestFileError:
+    post:
+      summary: Request File Error Notification
+      description: |
+        Email notification sent when request file processing fails.
+
+        **From:** accountupdater@merchante-solutions.com
+        **Subject:** ME Account Updater Request File Error
+
+        Processing halted due to errors. Review error details and resubmit corrected file.
+
+        DO NOT REPLY - Automated message.
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                fileId:
+                  type: string
+                fileName:
+                  type: string
+                uploadDate:
+                  type: string
+                  format: date-time
+                errors:
+                  type: array
+                  items:
+                    type: string
+                  description: List of errors encountered (Line.Pos format)
+
+x-certification:
+  description: |
+    ## Certification Process (4 Steps)
+
+    Merchants must be certified to use AUS with ME.
+
+    ### Step 1: Receive Documentation
+    - ME Account Updater API Specifications
+    - ME AUS Test Script with test account numbers
+    - Required enrollment forms and agreements
+
+    ### Step 2: Integration Launch Meeting
+    - Answer questions regarding file format and API process
+    - Verify association enrollment paperwork complete
+    - Discuss outstanding timeframes
+    - Confirm and test email alert address
+    - Determine single vs. multiple Merchant IDs
+    - Schedule testing date
+
+    ### Step 3: Conduct Certification Testing
+    - Submit file to certification simulator
+    - Review results file
+    - Test transactions NOT sent to card associations
+    - Upon success, account removed from Test mode
+
+    ### Step 4: Submit First Production File
+    - Submit first production file
+    - Validate results
+    - Confirm no enrollment errors from associations
+
+x-card-store:
+  description: |
+    ## Card Store Integration
+
+    Merchants using ME Payment Gateway Store Card tokenization can send Card Store ID instead of full card numbers.
+
+    **Benefits:**
+    - No card number transmission (send tokens only)
+    - Automatic token updates
+    - Enhanced security
+    - Simplified PCI compliance
+
+    **Workflow:**
+    1. Store card via gateway API → receive Card Store ID (32 chars)
+    2. Use D2 record type with Card Store ID in AUS request
+    3. ME automatically retrieves card data for update check
+    4. Associations check for updates
+    5. Token automatically updated with new card data
+    6. Continue using same Card Store ID (now represents updated card)
+
+    **Response Format:**
+    - New card numbers returned truncated: first6+xxxxxx+last4
+    - Example: 480500xxxxxx0058
+    - Full data automatically updated in token storage
+
+    **Testing Note:**
+    Multiple tests with values returning new card# need new Card ID created each time.
+
+x-web-interface:
+  description: |
+    ## Web-Based Upload/Retrieval
+
+    **Access:** ME Web Reporting site → Account Updater Service
+
+    ### Upload Process:
+    1. Log in to ME Web Reporting
+    2. Click "Account Updater Service"
+    3. Click "Upload Request File"
+    4. Select merchant account from dropdown
+    5. Browse to file location
+    6. Click Submit
+    7. View confirmation (ID, Date, User, Merchant #, File)
+
+    **Note:** Confirmation only shows successful upload. File validation occurs during processing.
+
+    ### View Response Files:
+    1. Click "View Response Files"
+    2. Select AUS User and Merchant Account
+    3. Review AUS Activity table
+    4. Click Response File link to download
+
+    ### AUS Activity Table Fields:
+    | Field | Description |
+    |-------|-------------|
+    | Number | Row number assigned by ME |
+    | ID | File ID assigned by ME |
+    | Request Date | Date and time of upload |
+    | User | User who uploaded |
+    | Merchant # | Associated merchant number |
+    | Request File | Name of request file |
+    | Status | Pending, Successful, or Failed |
+    | Response Date | Date response available |
+    | Response File | Clickable download link |
+
+    ### File Retention:
+    - Response files: 4 calendar days (clickable link active)
+    - Activity table: 30 calendar days total
+    - After 4 days: link inactive, file cannot be recovered
+
+    ### Multiple Response Files:
+    If Visa and MasterCard responses arrive separately, multiple response files created.
+    Denoted by suffix: -1, -2 (e.g., rsp-911146-1.txt, rsp-911146-2.txt)
+
+x-summary-report:
+  description: |
+    ## Account Updater Summary Report
+
+    View activity summary for user-defined date range.
+
+    **Statistics:**
+    - Total requests / Total matches
+    - Visa requests / matches / percentage
+    - MasterCard requests / matches / percentage
+    - Discover requests / matches / percentage
+
+    **Detail Breakdown (Total Matches link):**
+
+    | Source | Match Codes | Non-Match Codes |
+    |--------|-------------|-----------------|
+    | Visa | CALL, CLOSED, NEWACCT, NEWEXP | GOOD, NOMATCH, NPBIN |
+    | MasterCard | CLOSED, NEWACCT, NEWEXP | (none returned) |
+    | Discover | CALL, CLOSED, NEWACCT, NEWEXP, OVERRIDE | (varies) |
+
+    **Note:** Visa returns both match and non-match responses. MasterCard only returns match responses.
+
+x-examples:
+  request-file-full-card:
+    summary: Request file with full card numbers (D1 records)
+    value: |
+      H1100000941000057778
+      D1VISA4111111111111111                  1101
+      D1MC  5222222222222222                  0901
+      T1000002
+
+  request-file-card-store:
+    summary: Request file with Card Store IDs (D2 records)
+    value: |
+      H1100000941000057778
+      D2VISA258316d09edc34c7b49c11324f37e7ef1101
+      D2MC  57be5179ecbe3902b0db21b32ae3a8200901
+      T1000002
+
+  response-file-full-card:
+    summary: Response file with full card numbers
+    value: |
+      H1100000941000057778
+      D1VISA4111111111111111                  1101VISA4111111111111111                  1207NEWEXP  02
+      D1MC  5222222222222222                  0901                                          CLOSED  03
+      T1000002
+
+  response-file-card-store:
+    summary: Response file with Card Store IDs (truncated new numbers)
+    value: |
+      H1100000941000057778
+      D2VISA258316d09edc34c7b49c11324f37e7ef1101VISA411111xxxxxx1111                  1207NEWEXP  02
+      D2MC  57be5179ecbe3902b0db21b32ae3a8200901                                          CLOSED  03
+      T1000002
+
+x-document-info:
+  original-document: ME_Account_Updater_API_Spec_March2024.pdf
+  publication-date: March 2024
+  version: '3.0'
+  conversion-notes: |
+    **Issues identified and corrected in this conversion:**
+
+    1. **CRITICAL - Duplicate userPass property (Lines 92-100 in original):** The original YAML
+       had userPass defined twice in the upload request schema. This is invalid YAML/OpenAPI.
+       Fixed by removing the duplicate definition.
+
+    2. **Missing reqfName_n in status example:** The status inquiry response example was
+       missing the reqfName_n parameter that is documented in the PDF (Page 11).
+       Added to examples.
+
+    3. **Response detail record character count:** Original stated "126 characters" but
+       correct calculation per PDF Page 7-8 is 124 characters
+       (2+4+32+4+4+32+4+8+2+32=124). Corrected.
+
+    4. **Missing maxLength for statusFilter:** PDF specifies 16 character max length.
+       Added maxLength: 16 to the parameter schema.
+
+    5. **Missing response schemas:** Added proper schemas (UploadResponse, StatusResponse,
+       ErrorResponse) to document the URL-encoded response parameters per PDF.
+
+    6. **Download response ambiguity:** Clarified that download returns either file data
+       (with Content-Disposition header) OR error response, and client must detect which.
+
+    **Note on PDF Page 12:** The source PDF has a heading "Upload file response parameters"
+    in the Download section, which appears to be a documentation error in the original.
+    The table content is correct for download error responses.
+  version-history:
+    - date: April 2023
+      changes: Switched to Monthly Review
+    - date: May 2022
+      version: '3.0'
+      changes: |
+        Company information: Updated statements to include KeyBank.
+        Branding: Applied current ME-branded template.
+    - date: December 2019
+      version: '2.0'
+      changes: Rebranded
+    - date: March 2015
+      version: '1.6'
+      changes: |
+        Added Discover to Introduction and chart.
+        Testing Section: Added DISC card type.
+        Added response code and Discover report fields.

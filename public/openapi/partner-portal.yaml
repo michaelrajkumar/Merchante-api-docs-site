@@ -1,0 +1,3392 @@
+openapi: 3.0.3
+info:
+  title: MerchantE Partner Portal API
+  description: "The MerchantE Partner Portal API offers a streamlined process to pass merchant business information \n\
+    related to a sales opportunity, a partial application, or a completed application to MerchantE. This API \nmodel is based\
+    \ on the MerchantE application and the business information required to underwrite and \nonboard merchants with our company.\n\
+    \nClients of this API are granted the ability to create, update, or delete Salesforce objects containing \nbusiness information\
+    \ specific to an opportunity, directly from their own customer relationship management \nsystem. These objects are then\
+    \ transposed to the Partner Portal in a viewable format, where they will \ndisplay data needed to onboard the account\
+    \ so that the merchant may begin to process credit card \ntransactions.\n\n## Documentation\n- Technical documentation\
+    \ and SDK libraries: https://developer.merchante.com\n- PCI Security Standards: https://www.pcisecuritystandards.org/\n\
+    - NAICS lookup: https://www.census.gov/econ/isp/\n\n## Important Notes\n- The Merchant DBA Name is always required\n-\
+    \ DDA Type is required when submitting checking account information\n- Entity Type, Last Name and Contact Role are required\
+    \ when submitting contact information\n- Product Name is required when submitting equipment information\n- Updates to\
+    \ applications in \"Pending Underwriting\" or \"Closed Won\" stages are not allowed\n\n## Object Hierarchy (payload structure)\n\
+    - Account (Parent)\n- Opportunity (Child to Account)\n- Contact (Child to Account)\n- Business Checking Account (Child\
+    \ to Account)\n- Quote (Grandchild to Account and Child to Opportunity)\n- Quote Line Item (Greatgrandchild to Account\
+    \ and Grandchild to Opportunity)\n\n**Portal-optimized build:** adds request field grouping (Required/Recommended/Others),\
+    \ update payload schemas requiring `id`, per-action response examples aligned to the March 2024 PDF, and hides raw Salesforce\
+    \ endpoints under an internal tag."
+  version: 3.5-portal-optimized-v1.2
+  contact:
+    name: MerchantE Partner Support
+    url: https://www.merchante.com
+  license:
+    name: Proprietary
+    url: https://www.merchante.com
+servers:
+- url: https://test.salesforce.com
+  description: Test server
+security:
+- OAuth2: []
+paths:
+  /services/oauth2/token:
+    post:
+      summary: Get Authentication Token
+      description: 'Generate an OAuth 2.0 access token for API authentication.
+
+
+        **Note**: Auth token is valid for 24 hours.
+
+        '
+      operationId: getAuthToken
+      tags:
+      - Authentication
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              required:
+              - grant_type
+              - client_id
+              - client_secret
+              - username
+              - password
+              properties:
+                grant_type:
+                  type: string
+                  enum:
+                  - password
+                  description: Literal "password" text
+                client_id:
+                  type: string
+                  description: Different for each sandbox/org (provided by SE)
+                client_secret:
+                  type: string
+                  description: Different for each sandbox/org (provided by SE)
+                username:
+                  type: string
+                  example: partnerportalapi@merchante.com.cert
+                  description: Different for each sandbox/org
+                password:
+                  type: string
+                  description: Password + Security Token (provided by secure email). Security Token is not always required
+                    depending on the org configuration
+              x-parameterGroups:
+              - name: Required
+                fields:
+                - grant_type
+                - client_id
+                - client_secret
+                - username
+                - password
+              - name: Recommended
+                fields: []
+              - name: Others
+                fields: []
+            examples:
+              passwordGrant:
+                summary: passwordGrant
+                value:
+                  grant_type: password
+                  client_id: YOUR_CLIENT_ID
+                  client_secret: YOUR_CLIENT_SECRET
+                  username: YOUR_USERNAME
+                  password: YOUR_PASSWORD
+      responses:
+        '200':
+          description: 'Successful authentication. Returns an OAuth 2.0 access token valid for 24 hours.'
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  access_token:
+                    type: string
+                    description: OAuth 2.0 access token (valid for 24 hours)
+                  instance_url:
+                    type: string
+                  id:
+                    type: string
+                  token_type:
+                    type: string
+                    example: Bearer
+                  issued_at:
+                    type: string
+                  signature:
+                    type: string
+                x-parameterGroups:
+                - name: Common
+                  fields:
+                  - access_token
+                  - instance_url
+                  - token_type
+                - name: When Provided
+                  fields:
+                  - id
+                  - issued_at
+                  - signature
+                - name: Other Fields
+                  fields: []
+              examples:
+                tokenResponse:
+                  summary: Successful authentication response
+                  description: OAuth 2.0 access token with 24-hour validity
+                  value:
+                    access_token: 00Dxx0000000000!AQ0AQMxKzI5ODU3NzQ3NDI5OjE3MTAwMDAwMDAwMDA6cjo6OkFRRUFJUUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQQ
+                    instance_url: https://merchante-solutions.my.salesforce.com
+                    id: https://login.salesforce.com/id/00Dxx0000000000/005xx0000000000
+                    token_type: Bearer
+                    issued_at: '1710000000000'
+                    signature: 0Cmx9lKp3hA9FJCz8V2TZxF6q8Y5bH3xZ1pN4mK7sR9dQ6wE2tL8jF3vN5cX0aB1
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /services/data/v54.0/composite/sobjects:
+    post:
+      summary: '[Internal] Create Merchant Application'
+      description: "Creates a new merchant application with all related objects including Account, Opportunity, \nContacts\
+        \ (Beneficial Owners), Business Checking Accounts, Quote, and Quote Line Items.\n\n**Required Information**:\n- The\
+        \ Merchant DBA Name is always required\n- DDA Type is required when submitting checking account information\n- Entity\
+        \ Type, Last Name and Contact Role are required when submitting contact information\n- Product Name is required when\
+        \ submitting equipment information\n\n**Business Rules**:\n- At least one Primary Contact/Beneficial Owner must be\
+        \ identified\n- Only one Control Owner is allowed per application\n- Only one Authorized Signer is allowed per application\n\
+        - Maximum 4 Beneficial Owners are allowed per application\n- Only 1 Beneficial Owner is allowed for Sole Proprietorship\n\
+        - Sum of % Ownership for all Beneficial Owners must not exceed 100%\n"
+      operationId: createApplication
+      tags:
+      - Salesforce (internal)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateApplicationRequest'
+            examples:
+              minimalCreateApplication:
+                summary: minimalCreateApplication
+                value:
+                  Opp:
+                    attributes:
+                      type: Opportunity
+                    BET_Table_ID_API_Field__c: string
+                    Yearly_Net_Revenue__c: 1
+                    Visa_MC_Discover_Volume__c: 1
+                    Merchant_Application_Notes__c: string
+                  Mer:
+                    attributes:
+                      type: Account
+                    Name: string
+                    Legal_Name__c: string
+                    Tax_ID__c: string
+                    State_of_Entity_Formation_Incorporation__c: string
+                    BillingStreet: string
+                    BillingCity: string
+                    BillingStateCode: string
+                    BillingPostalCode: string
+                    BillingCountryCode: string
+                    ShippingStreet: string
+                    ShippingCity: string
+                    Phone: string
+                    App_Email__c: test@example.com
+                    Customer_Service_Phone__c: string
+                    Ownership: Sole Proprietorship
+                    Industry: Retail
+                    Location_Type__c: Ecommerce
+                    Years_at_Location__c: string
+                    Date_Established__c: '2000-01-01'
+                    Chain_Non_Chain__c: Single Outlet
+                    Description: string
+                    MCC_API_Field__c: string
+                    Sponsorship__c: Wells Fargo
+      responses:
+        '200':
+          description: Application created successfully
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ApplicationResponse'
+              examples:
+                createApplicationResponse:
+                  summary: createApplicationResponse
+                  value: &id001
+                  - Success: true
+                    SourceId: null
+                    SFId: 0011800000YkI5NAAV
+                    ObjectType: Account
+                    Message: Merchant Information Created Successfully.
+                  - Success: true
+                    SourceId: '111'
+                    SFId: 0031800000SwFDOAA3
+                    ObjectType: Contact
+                    Message: Beneficial Owner Created Successfully.
+                  - Success: true
+                    SourceId: '222'
+                    SFId: 0031800000SwFDPAA3
+                    ObjectType: Contact
+                    Message: Beneficial Owner Created Successfully.
+                  - Success: true
+                    SourceId: '111'
+                    SFId: a3h18000000blAWAAY
+                    ObjectType: Business Checking Account
+                    Message: Business Checking Account Created Successfully.
+                  - Success: true
+                    SourceId: '222'
+                    SFId: a3h18000000blAXAAY
+                    ObjectType: Business Checking Account
+                    Message: Business Checking Account Created Successfully.
+                  - Success: true
+                    SourceId: null
+                    SFId: 00618000006PCkHAAW
+                    ObjectType: Opportunity
+                    Message: Transaction/Payment Options Created Successfully.
+                  - Success: true
+                    SourceId: null
+                    SFId: 0Q01800000020nxCAA
+                    ObjectType: Quote
+                    Message: Record Created Successfully.
+                  - Success: true
+                    SourceId: null
+                    SFId: 0QL1800000028mnGAA
+                    ObjectType: QuoteLineItem
+                    Message: Solution & Fees Created Successfully.
+                  - Success: true
+                    SourceId: '111'
+                    SFId: 0QL1800000028moGAA
+                    ObjectType: QuoteLineItem
+                    Message: Equipment Created Successfully.
+                  - Success: true
+                    SourceId: '222'
+                    SFId: 0QL1800000028mpGAA
+                    ObjectType: QuoteLineItem
+                    Message: Equipment Created Successfully.
+        '400':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationError'
+      parameters:
+      - $ref: '#/components/parameters/AuthorizationHeader'
+      x-internal: true
+    patch:
+      summary: '[Internal] Update Merchant Application'
+      description: 'Updates an existing merchant application and its related objects.
+
+
+        **Important Notes**:
+
+        - The "id" field represents the SFId of the ObjectType being updated
+
+        - Include the Opportunity SFID for Update requests
+
+        - Source ID can be used to relate SFID to the corresponding fields provided
+
+        - Updates to applications in "Pending Underwriting" or "Closed Won" stages are not allowed
+
+        '
+      operationId: updateApplication
+      tags:
+      - Salesforce (internal)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateApplicationRequest'
+            examples:
+              minimalUpdateApplication:
+                summary: minimalUpdateApplication
+                value:
+                  Opp: null
+                  Mer: null
+      responses:
+        '200':
+          description: Application updated successfully
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ApplicationResponse'
+              examples:
+                updateApplicationResponse:
+                  summary: updateApplicationResponse
+                  value: &id002
+                  - Success: true
+                    SourceId: null
+                    SFId: 0011800000YkI5NAAV
+                    ObjectType: Account
+                    Message: Merchant Information Updated Successfully.
+                  - Success: true
+                    SourceId: '111'
+                    SFId: 0031800000SwFDOAA3
+                    ObjectType: Contact
+                    Message: Beneficial Owner Updated Successfully.
+                  - Success: true
+                    SourceId: '222'
+                    SFId: 0031800000SwFDPAA3
+                    ObjectType: Contact
+                    Message: Beneficial Owner Updated Successfully.
+                  - Success: true
+                    SourceId: '111'
+                    SFId: a3h18000000blAWAAY
+                    ObjectType: Business Checking Account
+                    Message: Business Checking Account Updated Successfully.
+                  - Success: true
+                    SourceId: '222'
+                    SFId: a3h18000000blAXAAY
+                    ObjectType: Business Checking Account
+                    Message: Business Checking Account Updated Successfully.
+                  - Success: true
+                    SourceId: null
+                    SFId: 00618000006PCkHAAW
+                    ObjectType: Opportunity
+                    Message: Transaction/Payment Options Updated Successfully.
+                  - Success: true
+                    SourceId: null
+                    SFId: 0Q01800000020nxCAA
+                    ObjectType: Quote
+                    Message: Record Updated Successfully.
+                  - Success: true
+                    SourceId: null
+                    SFId: 0QL1800000028mnGAA
+                    ObjectType: QuoteLineItem
+                    Message: Solution & Fees Updated Successfully.
+                  - Success: true
+                    SourceId: '111'
+                    SFId: 0QL1800000028moGAA
+                    ObjectType: QuoteLineItem
+                    Message: Equipment Updated Successfully.
+                  - Success: true
+                    SourceId: '222'
+                    SFId: 0QL1800000028mpGAA
+                    ObjectType: QuoteLineItem
+                    Message: Equipment Updated Successfully.
+        '400':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationError'
+      parameters:
+      - $ref: '#/components/parameters/AuthorizationHeader'
+      x-internal: true
+  /services/data/v54.0/sobjects/Opportunity/{opportunityId}:
+    get:
+      summary: '[Internal] Get Opportunity'
+      description: Retrieve information for a specific opportunity
+      operationId: getOpportunity
+      x-parameterGroups:
+        - name: Required
+          fields:
+            - Authorization
+            - opportunityId
+      tags:
+      - Salesforce (internal)
+      parameters:
+      - $ref: '#/components/parameters/AuthorizationHeader'
+      - name: opportunityId
+        in: path
+        required: true
+        description: The SFId value associated with the ObjectType Opportunity
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Opportunity details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Opportunity'
+        '404':
+          description: Opportunity not found
+      x-internal: true
+  /services/data/v54.0/sobjects/Opportunity/{opportunityId}/Account:
+    get:
+      summary: '[Internal] Get Account'
+      description: Retrieve account information for a specific opportunity
+      operationId: getAccount
+      x-parameterGroups:
+        - name: Required
+          fields:
+            - Authorization
+            - opportunityId
+      tags:
+      - Salesforce (internal)
+      parameters:
+      - $ref: '#/components/parameters/AuthorizationHeader'
+      - name: opportunityId
+        in: path
+        required: true
+        description: The Salesforce ID (SFId) of the Opportunity record
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Account details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Account'
+      x-internal: true
+  /services/data/v54.0/sobjects/Opportunity/{opportunityId}/Account/Contacts:
+    get:
+      summary: '[Internal] Get Contacts'
+      description: Retrieve all contacts for a specific opportunity's account
+      operationId: getContacts
+      x-parameterGroups:
+        - name: Required
+          fields:
+            - Authorization
+            - opportunityId
+      tags:
+      - Salesforce (internal)
+      parameters:
+      - $ref: '#/components/parameters/AuthorizationHeader'
+      - name: opportunityId
+        in: path
+        required: true
+        description: The Salesforce ID (SFId) of the Opportunity record
+        schema:
+          type: string
+      responses:
+        '200':
+          description: List of contacts
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Contact'
+      x-internal: true
+  /services/data/v54.0/sobjects/Opportunity/{opportunityId}/Account/Business_Checking_Accounts__r:
+    get:
+      summary: '[Internal] Get Business Checking Accounts'
+      description: Retrieve all business checking accounts for a specific opportunity's account
+      operationId: getBusinessCheckingAccounts
+      x-parameterGroups:
+        - name: Required
+          fields:
+            - Authorization
+            - opportunityId
+      tags:
+      - Salesforce (internal)
+      parameters:
+      - $ref: '#/components/parameters/AuthorizationHeader'
+      - name: opportunityId
+        in: path
+        required: true
+        description: The Salesforce ID (SFId) of the Opportunity record
+        schema:
+          type: string
+      responses:
+        '200':
+          description: List of business checking accounts
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/BusinessCheckingAccount'
+      x-internal: true
+  /services/data/v54.0/sobjects/Opportunity/{opportunityId}/Quotes:
+    get:
+      summary: '[Internal] Get Quotes'
+      description: Retrieve all quotes for a specific opportunity
+      operationId: getQuotes
+      x-parameterGroups:
+        - name: Required
+          fields:
+            - Authorization
+            - opportunityId
+      tags:
+      - Salesforce (internal)
+      parameters:
+      - $ref: '#/components/parameters/AuthorizationHeader'
+      - name: opportunityId
+        in: path
+        required: true
+        description: The Salesforce ID (SFId) of the Opportunity record
+        schema:
+          type: string
+      responses:
+        '200':
+          description: List of quotes
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Quote'
+      x-internal: true
+  /services/data/v54.0/sobjects/Quote/{quoteId}/QuoteLineItems:
+    get:
+      summary: '[Internal] Get Quote Line Items'
+      description: Retrieve all quote line items for a specific quote
+      operationId: getQuoteLineItems
+      x-parameterGroups:
+        - name: Required
+          fields:
+            - Authorization
+            - quoteId
+      tags:
+      - Salesforce (internal)
+      parameters:
+      - $ref: '#/components/parameters/AuthorizationHeader'
+      - name: quoteId
+        in: path
+        required: true
+        description: The SFId value associated with the ObjectType Quote
+        schema:
+          type: string
+      responses:
+        '200':
+          description: List of quote line items
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/QuoteLineItem'
+      x-internal: true
+  /services/data/v54.0/sobjects/Attachment:
+    post:
+      summary: '[Internal] Submit Attachments'
+      description: 'Submit file attachments for an opportunity.
+
+
+        **Requirements**:
+
+        - Opportunity ID is required
+
+        - File size limit: 100 MB per file
+
+        - Files must be converted to Base64
+
+        - Maximum total attachment size: 2 GB
+
+        - Attachments must be transmitted to this alternate endpoint
+
+        '
+      operationId: submitAttachments
+      tags:
+      - Salesforce (internal)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AttachmentRequest'
+      responses:
+        '201':
+          description: Attachments created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SalesforceCreateResponse'
+              examples:
+                attachmentCreated:
+                  summary: attachmentCreated
+                  value:
+                    id: 00P1800000ABCdEAAW
+                    success: true
+                    errors: []
+        '400':
+          description: Bad request (e.g., file too large, missing Opportunity ID)
+      parameters:
+      - $ref: '#/components/parameters/AuthorizationHeader'
+      x-internal: true
+  /applications:
+    post:
+      summary: Create Application (Docs Alias)
+      description: 'Documentation-friendly alias for creating an application.
+
+
+        **Backend path:** `/services/data/v54.0/composite/sobjects` (Salesforce Composite SObject API).
+
+        Use this alias in docs UIs to see a cleaner endpoint name; for direct Salesforce calls, use the backend path.'
+      operationId: createApplicationAlias
+      tags:
+      - Applications
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateApplicationRequest'
+            examples:
+              minimalCreateApplication:
+                summary: Minimal create request (core required fields only)
+                value:
+                  Opp:
+                    attributes:
+                      type: Opportunity
+                    BET_Table_ID_API_Field__c: '2222'
+                    Visa_MC_Discover_Volume__c: 500
+                    Merchant_Application_Notes__c: Initial submission
+                  Mer:
+                    attributes:
+                      type: Account
+                    Name: Example Merchant DBA
+                    Legal_Name__c: Example Merchant LLC
+                    Tax_ID__c: 12-3456789
+                    MCC_API_Field__c: '5999'
+                    State_of_Entity_Formation_Incorporation__c: CA
+                    App_Email__c: owner@example.com
+                    Phone: 555-555-5555
+                    Customer_Service_Phone__c: 555-555-5555
+      responses:
+        '200':
+          description: Application created successfully
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ApplicationResponse'
+              examples:
+                createApplicationResponse:
+                  summary: createApplicationResponse
+                  value: *id001
+        '400':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationError'
+      parameters:
+      - $ref: '#/components/parameters/AuthorizationHeader'
+      x-backend-path: /services/data/v54.0/composite/sobjects
+    patch:
+      summary: Update Application (Docs Alias)
+      description: 'Documentation-friendly alias for updating an application.
+
+
+        **Backend path:** `/services/data/v54.0/composite/sobjects` (Salesforce Composite SObject API).
+
+        Use this alias in docs UIs to see a cleaner endpoint name; for direct Salesforce calls, use the backend path.'
+      operationId: updateApplicationAlias
+      tags:
+      - Applications
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateApplicationRequest'
+            examples:
+              minimalUpdateApplication:
+                summary: Minimal update request (include SFId `id` for each object you update)
+                value:
+                  Opp:
+                    attributes:
+                      type: Opportunity
+                    id: 00618000006PCkHAAW
+                    StageName: Pending Underwriting
+                    Merchant_Application_Notes__c: Update note
+                  Mer:
+                    attributes:
+                      type: Account
+                    id: 0011800000YkI5NAAV
+                    Phone: 555-555-5555
+      responses:
+        '200':
+          description: Application updated successfully
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ApplicationResponse'
+              examples:
+                updateApplicationResponse:
+                  summary: updateApplicationResponse
+                  value: *id002
+        '400':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationError'
+      parameters:
+      - $ref: '#/components/parameters/AuthorizationHeader'
+      x-backend-path: /services/data/v54.0/composite/sobjects
+  /applications/attachments:
+    post:
+      summary: Submit Attachments (Docs Alias)
+      description: 'Documentation-friendly alias for submitting base64-encoded attachments.
+
+
+        **Backend path:** `/services/data/v54.0/sobjects/Attachment`.
+
+        Attachments must be transmitted to the Attachment endpoint (separate from application create/update).'
+      operationId: submitAttachmentsAlias
+      tags:
+      - Applications
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AttachmentRequest'
+      responses:
+        '201':
+          description: Attachments created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SalesforceCreateResponse'
+              examples:
+                attachmentCreated:
+                  summary: attachmentCreated
+                  value:
+                    id: 00P1800000ABCdEAAW
+                    success: true
+                    errors: []
+        '400':
+          description: Bad request (e.g., file too large, missing Opportunity ID)
+      parameters:
+      - $ref: '#/components/parameters/AuthorizationHeader'
+      x-backend-path: /services/data/v54.0/sobjects/Attachment
+  /applications/{opportunityId}:
+    get:
+      summary: Get Application Opportunity
+      description: 'Retrieve opportunity details for a specific application by Opportunity ID.
+
+
+        Returns the Opportunity record including submission details, volumes, business model, programs, channels, and other application-level fields.
+
+
+        **Backend path:** `/services/data/v54.0/sobjects/Opportunity/{opportunityId}`.'
+      operationId: getOpportunityAlias
+      x-parameterGroups:
+        - name: Required
+          fields:
+            - Authorization
+            - opportunityId
+      tags:
+      - Lookup
+      parameters:
+      - $ref: '#/components/parameters/AuthorizationHeader'
+      - name: opportunityId
+        in: path
+        required: true
+        description: The SFId value associated with the ObjectType Opportunity
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Opportunity details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Opportunity'
+        '404':
+          description: Opportunity not found
+      x-backend-path: /services/data/v54.0/sobjects/Opportunity/{opportunityId}
+  /applications/{opportunityId}/account:
+    get:
+      summary: Get Account
+      description: 'Retrieve the merchant account (Account object) associated with a specific application.
+
+
+        Returns the Account record including merchant identity, legal/DBA addresses, contact information, business profile, and processing history.
+
+
+        **Backend path:** `/services/data/v54.0/sobjects/Opportunity/{opportunityId}/Account`.'
+      operationId: getAccountAlias
+      x-parameterGroups:
+        - name: Required
+          fields:
+            - Authorization
+            - opportunityId
+      tags:
+      - Lookup
+      parameters:
+      - $ref: '#/components/parameters/AuthorizationHeader'
+      - name: opportunityId
+        in: path
+        required: true
+        description: The Salesforce ID (SFId) of the Opportunity record
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Account details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Account'
+      x-backend-path: /services/data/v54.0/sobjects/Opportunity/{opportunityId}/Account
+  /applications/{opportunityId}/contacts:
+    get:
+      summary: Get Contacts
+      description: 'Retrieve all contacts (beneficial owners) associated with a specific application.
+
+
+        Returns a list of Contact records including principals, control owners, authorized signers, and beneficial owners with their personal information, ownership percentages, and roles.
+
+
+        **Backend path:** `/services/data/v54.0/sobjects/Opportunity/{opportunityId}/Account/Contacts`.'
+      operationId: getContactsAlias
+      x-parameterGroups:
+        - name: Required
+          fields:
+            - Authorization
+            - opportunityId
+      tags:
+      - Lookup
+      parameters:
+      - $ref: '#/components/parameters/AuthorizationHeader'
+      - name: opportunityId
+        in: path
+        required: true
+        description: The Salesforce ID (SFId) of the Opportunity record
+        schema:
+          type: string
+      responses:
+        '200':
+          description: List of contacts
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Contact'
+      x-backend-path: /services/data/v54.0/sobjects/Opportunity/{opportunityId}/Account/Contacts
+  /applications/{opportunityId}/business-checking-accounts:
+    get:
+      summary: Get Business Checking Accounts
+      description: 'Retrieve all business checking accounts (DDA accounts) associated with a specific application.
+
+
+        Returns a list of Business Checking Account records including bank routing numbers, account numbers, account types, and settlement preferences.
+
+
+        **Backend path:** `/services/data/v54.0/sobjects/Opportunity/{opportunityId}/Account/Business_Checking_Accounts__r`.'
+      operationId: getBusinessCheckingAccountsAlias
+      x-parameterGroups:
+        - name: Required
+          fields:
+            - Authorization
+            - opportunityId
+      tags:
+      - Lookup
+      parameters:
+      - $ref: '#/components/parameters/AuthorizationHeader'
+      - name: opportunityId
+        in: path
+        required: true
+        description: The Salesforce ID (SFId) of the Opportunity record
+        schema:
+          type: string
+      responses:
+        '200':
+          description: List of business checking accounts
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/BusinessCheckingAccount'
+      x-backend-path: /services/data/v54.0/sobjects/Opportunity/{opportunityId}/Account/Business_Checking_Accounts__r
+  /applications/{opportunityId}/quotes:
+    get:
+      summary: Get Quotes
+      description: 'Retrieve all quotes associated with a specific application.
+
+
+        Returns a list of Quote records containing pricing proposals, including settlement timelines and quote status.
+
+
+        **Backend path:** `/services/data/v54.0/sobjects/Opportunity/{opportunityId}/Quotes`.'
+      operationId: getQuotesAlias
+      x-parameterGroups:
+        - name: Required
+          fields:
+            - Authorization
+            - opportunityId
+      tags:
+      - Lookup
+      parameters:
+      - $ref: '#/components/parameters/AuthorizationHeader'
+      - name: opportunityId
+        in: path
+        required: true
+        description: The Salesforce ID (SFId) of the Opportunity record
+        schema:
+          type: string
+      responses:
+        '200':
+          description: List of quotes
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Quote'
+      x-backend-path: /services/data/v54.0/sobjects/Opportunity/{opportunityId}/Quotes
+  /quotes/{quoteId}/quote-line-items:
+    get:
+      summary: Get Quote Line Items
+      description: 'Retrieve all quote line items for a specific quote.
+
+
+        Returns a list of Quote Line Items including solutions, equipment, pricing fees, transaction rates, and service charges associated with the quote.
+
+
+        **Backend path:** `/services/data/v54.0/sobjects/Quote/{quoteId}/QuoteLineItems`.'
+      operationId: getQuoteLineItemsAlias
+      x-parameterGroups:
+        - name: Required
+          fields:
+            - Authorization
+            - quoteId
+      tags:
+      - Lookup
+      parameters:
+      - $ref: '#/components/parameters/AuthorizationHeader'
+      - name: quoteId
+        in: path
+        required: true
+        description: The SFId value associated with the ObjectType Quote
+        schema:
+          type: string
+      responses:
+        '200':
+          description: List of quote line items
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/QuoteLineItem'
+      x-backend-path: /services/data/v54.0/sobjects/Quote/{quoteId}/QuoteLineItems
+components:
+  securitySchemes:
+    OAuth2:
+      type: oauth2
+      description: 'OAuth 2.0 authentication using password grant type. Access token must be passed as Type "OAUTH 2.0" with
+        the authorization header.
+
+
+        Use the access token from `/services/oauth2/token` in the `Authorization` header as `Bearer <token>`.'
+      flows:
+        password:
+          tokenUrl: /services/oauth2/token
+          scopes: {}
+  schemas:
+    CreateApplicationRequest:
+      type: object
+      required:
+      - Opp
+      - Mer
+      properties:
+        Opp:
+          $ref: '#/components/schemas/Opportunity'
+        Mer:
+          $ref: '#/components/schemas/Account'
+        lstBens:
+          type: array
+          description: List of Beneficial Owners (Contacts)
+          items:
+            $ref: '#/components/schemas/Contact'
+        lstbussCheckAcc:
+          type: array
+          description: List of Business Checking Accounts
+          items:
+            $ref: '#/components/schemas/BusinessCheckingAccount'
+        Lstqli:
+          type: array
+          description: List of Quote Line Items (Solutions, Fees, Equipment)
+          items:
+            $ref: '#/components/schemas/QuoteLineItem'
+      x-parameterGroups:
+      - name: Required
+        fields:
+        - Opp
+        - Mer
+      - name: Recommended
+        fields: []
+      - name: Others
+        fields:
+        - lstBens
+        - lstbussCheckAcc
+        - Lstqli
+    UpdateApplicationRequest:
+      type: object
+      required:
+      - Opp
+      - Mer
+      properties:
+        Opp:
+          $ref: '#/components/schemas/OpportunityUpdate'
+        Mer:
+          $ref: '#/components/schemas/AccountUpdate'
+        lstBens:
+          type: array
+          items:
+            $ref: '#/components/schemas/ContactUpdate'
+        lstbussCheckAcc:
+          type: array
+          items:
+            $ref: '#/components/schemas/BusinessCheckingAccountUpdate'
+        Lstqli:
+          type: array
+          items:
+            $ref: '#/components/schemas/QuoteLineItemUpdate'
+      x-parameterGroups:
+      - name: Required
+        fields:
+        - Opp
+        - Mer
+      - name: Recommended
+        fields: []
+      - name: Others
+        fields:
+        - lstBens
+        - lstbussCheckAcc
+        - Lstqli
+    Opportunity:
+      allOf:
+      - $ref: '#/components/schemas/SObjectId'
+      - $ref: '#/components/schemas/Opportunity_Submission'
+      - $ref: '#/components/schemas/Opportunity_Volumes'
+      - $ref: '#/components/schemas/Opportunity_BusinessModel'
+      - $ref: '#/components/schemas/Opportunity_Programs'
+      - $ref: '#/components/schemas/Opportunity_Channels'
+      - $ref: '#/components/schemas/Opportunity_ACH_Limits'
+      - $ref: '#/components/schemas/Opportunity_Notes'
+      x-parameterGroups:
+      - name: Required
+        fields:
+        - attributes
+        - BET_Table_ID_API_Field__c
+        - Yearly_Net_Revenue__c
+        - Visa_MC_Discover_Volume__c
+        - Merchant_Application_Notes__c
+      - name: Recommended
+        fields:
+        - Seasonal_Months__c
+      - name: Others
+        fields:
+        - id
+        - StageName
+        - RecordTypeId
+        - Account_Type__c
+        - Name
+        - Auto_Submission_to_Underwriting__c
+        - Need_Pricing_Exception_Approval__c
+        - Yearly_Card_Volume__c
+        - High_Monthly_Volume__c
+        - Avg_Ticket__c
+        - High_Ticket__c
+        - American_Express_Volume__c
+        - Customer_Type_B2B_Sales__c
+        - Customer_Type_B2C_Sales__c
+        - Refund_Policy__c
+        - Days_to_Ship_Deliver__c
+        - Advanced_Payments__c
+        - Visa_MasterCard__c
+        - Discover_MeS_Settlement__c
+        - Discover_Settlement_Existing_Merchant__c
+        - American_Express_MeS_Settlement__c
+        - Amex_Settlement_Existing_SE__c
+        - Debit_with_Pin__c
+        - ACH__c
+        - EBT__c
+        - FCS__c
+        - Check_Authorization__c
+        - Name_of_Provider__c
+        - Merchant__c
+        - Check_pct__c
+        - Card_Network_Volume_Internet_CNP__c
+        - Card_Network_Volume_Manually_K_M__c
+        - Card_Network_Volume_MO_TO_CNP__c
+        - Card_Network_Volume_Swiped_CP__c
+        - ACH_Debit_Avg_Dollar_Per_Tx__c
+        - ACH_Credit_Avg_Dollar_Per_Tx__c
+        - ACH_Debit_Max_Dollar_Per_Tx__c
+        - ACH_Credit_Max_Dollar_Per_Tx__c
+        - ACH_Debit_Max_Dollar_Per_Day__c
+        - ACH_Credit_Max_Dollar_Per_Day__c
+        - ACH_Debit_Max_Tx_Per_Day__c
+        - ACH_Credit_Max_Tx_Per_Day__c
+        - ACH_Debit_Max_Dollar_Per_Month__c
+        - ACH_Credit_Max_Dollar_Per_Month__c
+        - ACH_Debit_Max_Tx_Per_Month__c
+        - ACH_Credit_Max_Tx_Per_Month__c
+    Account:
+      allOf:
+      - $ref: '#/components/schemas/SObjectId'
+      - $ref: '#/components/schemas/Account_Identity'
+      - $ref: '#/components/schemas/Account_Addresses'
+      - $ref: '#/components/schemas/Account_ContactInfo'
+      - $ref: '#/components/schemas/Account_BusinessProfile'
+      - $ref: '#/components/schemas/Account_ProcessingHistory'
+      x-parameterGroups:
+      - name: Required
+        fields:
+        - attributes
+        - Name
+        - Legal_Name__c
+        - Tax_ID__c
+        - State_of_Entity_Formation_Incorporation__c
+        - MCC_API_Field__c
+        - BillingStreet
+        - BillingCity
+        - BillingStateCode
+        - BillingPostalCode
+        - BillingCountryCode
+        - ShippingStreet
+        - ShippingCity
+        - Phone
+        - App_Email__c
+        - Customer_Service_Phone__c
+        - Ownership
+        - Industry
+        - Location_Type__c
+        - Years_at_Location__c
+        - Date_Established__c
+        - Chain_Non_Chain__c
+        - Description
+      - name: Recommended
+        fields:
+        - Industry_Other__c
+        - Location_Other__c
+      - name: Others
+        fields:
+        - id
+        - Association_ID_API_Field__c
+        - ShippingStateCode
+        - ShippingPostalCode
+        - ShippingCountryCode
+        - Physical_Address_Street__c
+        - Physical_Address_City__c
+        - Physical_Address_State__c
+        - Physical_Address_PostalCode__c
+        - Fax
+        - Website
+        - Ever_accepted_credit_cards_before__c
+        - Name_of_Previous_Processor__c
+        - Ever_had_a_merchant_account_canceled__c
+        - Name_of_Processor_for_canceled_merchant__c
+        - Reason_for_cancellation__c
+        - Date_of_cancellation__c
+    Contact:
+      allOf:
+      - $ref: '#/components/schemas/SObjectId'
+      - $ref: '#/components/schemas/Contact_Identity'
+      - $ref: '#/components/schemas/Contact_Address'
+      - $ref: '#/components/schemas/Contact_Communication'
+      x-parameterGroups:
+      - name: Required
+        fields:
+        - attributes
+        - LastName
+        - Title
+        - Contact_Role__c
+        - Beneficial_Owner_Unique_Field__c
+        - Date_of_Birth__c
+        - SSN__c
+        - MailingStreet
+        - MailingCity
+        - MailingStateCode
+        - MailingPostalCode
+        - Phone
+        - Email
+      - name: Recommended
+        fields:
+        - Percentage_Owned__c
+      - name: Others
+        fields:
+        - id
+        - FirstName
+        - Primary__c
+        - MailingCountryCode
+    BusinessCheckingAccount:
+      allOf:
+      - $ref: '#/components/schemas/SObjectId'
+      - $ref: '#/components/schemas/BCA_Base'
+      - $ref: '#/components/schemas/BCA_Bank'
+      - $ref: '#/components/schemas/BCA_Account'
+      x-parameterGroups:
+      - name: Required
+        fields:
+        - attributes
+        - Checking_Account_Unique_Field__c
+        - DDA_Type__c
+        - Bank_Name__c
+        - Bank_Street_Address__c
+        - Bank_City__c
+        - Bank_State__c
+        - Bank_Zipcode__c
+        - Checking_Account__c
+        - Transit_Routing__c
+        - Years_Open__c
+      - name: Recommended
+        fields: []
+      - name: Others
+        fields:
+        - id
+    Quote:
+      type: object
+      properties:
+        attributes:
+          type: object
+          properties:
+            type:
+              type: string
+              enum:
+              - Quote
+      x-parameterGroups:
+      - name: Required
+        fields:
+        - attributes
+      - name: Recommended
+        fields: []
+      - name: Others
+        fields: []
+    QuoteLineItem:
+      allOf:
+      - $ref: '#/components/schemas/SObjectId'
+      - $ref: '#/components/schemas/QLI_Base'
+      - $ref: '#/components/schemas/QLI_TerminalConfig'
+      - $ref: '#/components/schemas/QLI_Shipping'
+      - $ref: '#/components/schemas/QLI_Solutions'
+      - $ref: '#/components/schemas/QLI_DigitalCertificates'
+      - $ref: '#/components/schemas/QLI_Pricing_VisaMC'
+      - $ref: '#/components/schemas/QLI_Pricing_Amex'
+      - $ref: '#/components/schemas/QLI_Pricing_PinDebit'
+      - $ref: '#/components/schemas/QLI_Fees'
+      - $ref: '#/components/schemas/QLI_ACH'
+      - $ref: '#/components/schemas/QLI_Training'
+      - $ref: '#/components/schemas/QLI_Equipment'
+      - $ref: '#/components/schemas/QLI_Other'
+      x-parameterGroups:
+      - name: Required
+        fields:
+        - attributes
+      - name: Recommended
+        fields:
+        - Product_Name__c
+      - name: Others
+        fields:
+        - id
+        - MerchantE_Invoice__c
+        - POS_Terminals__c
+        - Terminal_Application__c
+        - Auto_Batch_Close_HR__c
+        - Auto_Batch_Close_MIN__c
+        - Receipt_Header_Line_4__c
+        - Receipt_Header_Line_5__c
+        - Receipt_Footer__c
+        - Communication_Type__c
+        - Clerk_Server_Prompt_On__c
+        - Invoice_Prompt_On__c
+        - Phone_training_for_merchant__c
+        - Access_Code_to_dial_out__c
+        - AVS_On__c
+        - Tip_Option_On__c
+        - Cash_Back__c
+        - Batch_Report_Type__c
+        - Authorization_Host__c
+        - Authorization_Host_other__c
+        - Equipment_Shipping_Address__c
+        - Other_Shipping_Address__c
+        - MeS_Virtual_Terminal__c
+        - Admin_Email__c
+        - Level_3__c
+        - Multi_Merchant__c
+        - MeS_Virtual_Terminal_Limited__c
+        - Admin_Email_Limited__c
+        - MeS_Payment_Gateway__c
+        - URL_Address__c
+        - Name_of_Certified_Shopping_Cart__c
+        - Payment_Gateway_Administrator_Email__c
+        - Processing_Option__c
+        - MeS_Pay_by_Phone__c
+        - Other_Solution__c
+        - Name_of_Other_Solution__c
+        - Solution_Version__c
+        - Hosted_payments_fee__c
+        - MerchantE_Invoice_Monthly_Fee__c
+        - MerchantE_Invoice_Link_Fee__c
+        - MeS_Activation_Training_for_Merchant__c
+        - Customer_Rate_not_to_exceed_3_50__c
+        - MerchantE_Invoice_Admin_Email__c
+        - MerchantE_Invoice_Link__c
+        - MerchantE_Invoice_Link_Email__c
+        - HostedPayments__c
+        - HostedPayAdminEmail__c
+        - Interchange_Optimization__c
+        - Interchange_Optimization_Email__c
+        - MeS_Financial_Services__c
+        - Name_of_the_digital_certificate_issuer__c
+        - Digital_certificate_number_s__c
+        - Digital_certificate_expiration_date_s__c
+        - Digital_Certificate_Ownership_Status__c
+        - V_MC_Acceptance_Options__c
+        - V_MC_Authorization_Fee__c
+        - V_MC_Diff_Plus_Plan__c
+        - V_MC_Diff_Plus_Percentage__c
+        - V_MC_Diff_Plus_Credit_Qualified_Per_Item__c
+        - V_MC_Diff_Plus_Credit_Qualified_Rate__c
+        - V_MC_Diff_Plus_Debit_Qualified_Per_Item__c
+        - V_MC_Diff_Plus_Debit_Qualified_Rate__c
+        - V_MC_Pass_Through_Plan__c
+        - V_MC_Pass_Through_Per_Item__c
+        - V_MC_Pass_Through_Rate__c
+        - V_MC_Tiered_Plan__c
+        - V_MC_Tiered_Commercial_Qual_Per_Item__c
+        - V_MC_Tiered_Commercial_Qual_Rate__c
+        - V_MC_Tiered_Credit_Qualified_Per_Item__c
+        - V_MC_Tiered_Credit_Qualified_Rate__c
+        - V_MC_Tiered_Debit_Qualified_Per_Item__c
+        - V_MC_Tiered_Debit_Qualified_Rate__c
+        - V_MC_Tiered_Mid_Qual_Per_Item__c
+        - V_MC_Tiered_Mid_Qual_Rate__c
+        - V_MC_Tiered_Non_Qual_Per_Item__c
+        - V_MC_Tiered_Non_Qual_Rate__c
+        - V_MC_Tiered_Rewards_Rate__c
+        - V_MC_Tiered_Rewards_Rate_Per_Item__c
+        - BET_Table_ID_API_Field__c
+        - Amex_Authorization_Fee__c
+        - Amex_Tiered_Plan__c
+        - Amex_Tier_3_Per_Item__c
+        - Amex_Tier_3_Rate__c
+        - Amex_Pass_Through_Plan__c
+        - Amex_Pass_Through_Per_Item__c
+        - Amex_Pass_Through_Rate__c
+        - Pin_Debit_Authorization_Fee__c
+        - Pin_Debit_Pass_Through_Plan__c
+        - Pin_Debit_Pass_Through_Rate__c
+        - Pin_Debit_Pass_Through_Per_Item__c
+        - Monthly_Fees_Other_Fee_Name_1__c
+        - Monthly_Fees_Other_Fee_Name_2__c
+        - Monthly_Fees_Other_Fee_Name_3__c
+        - Monthly_Fees_Other_Fee_Name_4__c
+        - Monthly_Fees_Other_Fee_Name_5__c
+        - Monthly_Fees_Other_Fee_Name_6__c
+        - Monthly_Fees_Other_Fee_Amount_1__c
+        - Monthly_Fees_Other_Fee_Amount_2__c
+        - Monthly_Fees_Other_Fee_Amount_3__c
+        - Monthly_Fees_Other_Fee_Amount_4__c
+        - Monthly_Fees_Other_Fee_Amount_5__c
+        - Monthly_Fees_Other_Fee_Amount_6__c
+        - Surcharge_Amount__c
+        - Gross_Settlement_Fee__c
+        - Surcharge__c
+        - Surcharge_Fee__c
+        - ACH_Transaction_Fee_Amount__c
+        - ACH_Transaction_Fee__c
+        - ACH_Monthly_Service_Fee__c
+        - ACH_Return_Re_presentment_Fee__c
+        - ACH_Unauthorized_Return_State_Fee__c
+        - ACH_SmartPay_Express_Setup_Fee__c
+        - ACH_SmartPay_Express_Monthly_Fee__c
+        - ACH_Hosted_Pay_Monthly_Fee__c
+        - ACH_Additional_Location_Monthly_Fee__c
+        - ACH_Additional_Bk_Account_Monthly_Fee__c
+        - ACH_Services__c
+        - ACH_Web_API__c
+        - ACH_NACHA_File__c
+        - ACH_CPP__c
+        - ACH_Debit__c
+        - ACH_Recurring_Debit__c
+        - ACH_Credit__c
+        - ACH_Recurring_Credit__c
+        - ACH_Refund__c
+        - ACH_Web_Check__c
+        - ACH_Tel_Check__c
+        - ACH_Max_Re_Presentments__c
+        - ACH_First_Re_Presentment__c
+        - ACH_Final_Re_Presentment__c
+        - ACH_Final_Re_Presentment_Days__c
+        - ACH_RCF_Max_Re_Presentments__c
+        - ACH_RCF_Amount__c
+        - ACH_RCF_Settlement_Account__c
+        - Product_Training__c
+        - PCI_Training__c
+        - Business_Platform_Training__c
+        - Level_3_Training__c
+        - Additional_Info_Training__c
+        - Equipment_Rent_Buy_Own__c
+        - Equipment_Per_Item__c
+        - Equipment_Quantity__c
+        - Equipment_Months__c
+        - Equipment_Unique_Field__c
+        - ARU__c
+        - Operator_Assisted__c
+        - AVS__c
+        - Bank_Referral__c
+        - JCB_CUP__c
+        - EBT__c
+        - Other_Authorization_Fee_Other_Fee_Name__c
+        - Other_Authorization_Fee_Other_Fee_Name2__c
+        - Other_Authorization_Fee_Other_Fee_Amt1__c
+        - Other_Authorization_Fee_Other_Fee_Amt2__c
+        - Account_Application__c
+        - New_Account_Setup__c
+        - One_Time_Account_Updater__c
+        - Wireless_Setup__c
+        - One_Time_Fees_Other_Fee_Name_1__c
+        - One_Time_Fees_Other_Fee_Name_2__c
+        - One_Time_Fees_Other_Fee_Amount_1__c
+        - One_Time_Fees_Other_Fee_Amount_2__c
+        - Minimum_Discount__c
+        - Chargeback_Fee__c
+        - Return_NSF__c
+        - Batch_Fee__c
+        - Internet_Per_Trans__c
+        - Per_Occurrence_Account_Updater__c
+        - Yearly_Admin__c
+        - Yearly_Payment_Gateway__c
+        - Per_Occurrence_Other_Fee_Name_1__c
+        - Per_Occurrence_Other_Fee_Name_2__c
+        - Per_Occurrence_Other_Fee_Amount_1__c
+        - Per_Occurrence_Other_Fee_Amount_2__c
+        - Statement_Fee__c
+        - Electronic_Statement__c
+        - Paper_Statement__c
+        - PCI_Admin_Monthly__c
+        - PCI_Late_Validation__c
+        - Wireless_Fees__c
+        - Business_Hub_Account_Service_Monthly_Fee__c
+    AttachmentRequest:
+      type: object
+      required:
+      - Opportunity
+      - attachments
+      properties:
+        Opportunity:
+          type: object
+          required:
+          - Id
+          properties:
+            Id:
+              type: string
+              description: Opportunity ID (required for submitting attachments)
+        attachments:
+          type: array
+          minItems: 1
+          items:
+            type: object
+            required:
+            - Body
+            - ContentType
+            - Name
+            properties:
+              Body:
+                type: string
+                format: byte
+                description: File content encoded in Base64 (max 100 MB per file, 2 GB total)
+              ContentType:
+                type: string
+                description: MIME type of the file
+                example: text/plain
+              Name:
+                type: string
+                description: Filename
+                example: hello.txt
+      x-parameterGroups:
+      - name: Required
+        fields:
+        - Opportunity
+        - attachments
+      - name: Recommended
+        fields: []
+      - name: Others
+        fields: []
+    ApplicationResponse:
+      type: object
+      properties:
+        Success:
+          type: boolean
+          description: Indicates if the data element was created/updated successfully (true/false)
+        SourceId:
+          type: string
+          nullable: true
+          description: 'Unique identifier for objects with multiple instances:
+
+            - For Contact: returns value of Beneficial_Owner_Unique_Field__c
+
+            - For Business Checking Account: returns value of Checking_Account_Unique_Field__c
+
+            - For Quote Line Item (Equipment): returns value of Equipment_Unique_Field__c
+
+            - Returns null for single-instance objects (Account, Opportunity, Quote)
+
+            '
+        SFId:
+          type: string
+          description: Unique Salesforce ID for the created/updated record
+        ObjectType:
+          type: string
+          description: Type of data object being sent and received through the API
+          enum:
+          - Account
+          - Opportunity
+          - Contact
+          - Business Checking Account
+          - Quote
+          - QuoteLineItem
+        Message:
+          type: string
+          description: A string of text that indicates if a specific data object was created/updated successfully
+          example: Merchant Information Created Successfully.
+      x-parameterGroups:
+      - name: Common
+        fields:
+        - Success
+        - SFId
+        - ObjectType
+        - Message
+      - name: When Provided
+        fields:
+        - SourceId
+      - name: Other Fields
+        fields: []
+    ValidationError:
+      type: object
+      description: 'Validation error response. If any validation errors occur, the entire request is rejected and no information
+        is saved.
+
+
+        See PDF pages 69-72 for complete list of validation rules.
+
+        '
+      properties:
+        errors:
+          type: array
+          items:
+            type: object
+            properties:
+              message:
+                type: string
+                description: Error message describing the validation failure
+                example: Phone/Fax number must be a 10-digit number or in (999) 999-9999 format.
+              errorCode:
+                type: string
+                description: Error code
+                example: FIELD_CUSTOM_VALIDATION_EXCEPTION
+              fields:
+                type: array
+                items:
+                  type: string
+                description: Field names that failed validation
+      x-parameterGroups:
+      - name: Common
+        fields:
+        - errors
+      - name: When Provided
+        fields: []
+      - name: Other Fields
+        fields: []
+    Error:
+      type: object
+      properties:
+        error:
+          type: string
+        error_description:
+          type: string
+      x-parameterGroups:
+      - name: Common
+        fields:
+        - error
+        - error_description
+      - name: When Provided
+        fields: []
+      - name: Other Fields
+        fields: []
+    Account_Identity:
+      type: object
+      title: Merchant identity
+      properties:
+        attributes:
+          type: object
+          required:
+          - type
+          properties:
+            type:
+              type: string
+              enum:
+              - Account
+        Name:
+          type: string
+          description: Merchant DBA Name (required). If field exceeds maximum length, value will be truncated.
+          maxLength: 255
+        Legal_Name__c:
+          type: string
+          description: Legal name (required). If field exceeds maximum length, value will be truncated.
+          maxLength: 100
+        Tax_ID__c:
+          type: string
+          description: Federal Tax ID - must be 9 digits (required). Validation error "Federal Tax ID Enter valid Federal
+            Tax ID" if not 9 digits.
+          pattern: ^\d{9}$
+          maxLength: 16
+        State_of_Entity_Formation_Incorporation__c:
+          type: string
+          description: State of formation/incorporation (required)
+          maxLength: 2
+        Association_ID_API_Field__c:
+          type: string
+          description: Association ID. Validation error if invalid Association ID entered.
+          maxLength: 100
+        MCC_API_Field__c:
+          type: string
+          description: MCC (Merchant Category Code) - required. Validation error if invalid MCC entered.
+          maxLength: 100
+      description: Core merchant identity fields.
+      required:
+      - attributes
+      - Name
+      - Legal_Name__c
+      - Tax_ID__c
+      - State_of_Entity_Formation_Incorporation__c
+      - MCC_API_Field__c
+    Account_Addresses:
+      type: object
+      title: Addresses
+      properties:
+        BillingStreet:
+          type: string
+          description: Legal street address (required). If field exceeds maximum length, value will be truncated.
+          maxLength: 255
+        BillingCity:
+          type: string
+          description: Legal city (required). If field exceeds maximum length, value will be truncated.
+          maxLength: 40
+        BillingStateCode:
+          type: string
+          description: Legal state/province code (required). See PDF pages 36-38 for full list of valid state codes.
+          maxLength: 80
+        BillingPostalCode:
+          type: string
+          description: Legal zip code - must be 5 digits (required). Validation error "Legal Address Zipcode Enter Valid Legal
+            Address Zipcode" if not 5 digits.
+          pattern: ^\d{5}$
+          maxLength: 20
+        BillingCountryCode:
+          type: string
+          description: Legal country code (required). See PDF pages 36-38 for full list of valid country codes.
+          maxLength: 80
+        ShippingStreet:
+          type: string
+          description: DBA street address (required). If field exceeds maximum length, value will be truncated.
+          maxLength: 255
+        ShippingCity:
+          type: string
+          description: DBA city. If field exceeds maximum length, value will be truncated.
+          maxLength: 40
+        ShippingStateCode:
+          type: string
+          description: DBA state/province code. See PDF pages 36-38 for full list of valid state codes.
+          maxLength: 80
+        ShippingPostalCode:
+          type: string
+          description: DBA zip code - must be 5 digits if provided. Validation error "DBA Address Zipcode Enter valid DBA
+            Address Zipcode" if not 5 digits.
+          pattern: ^\d{5}$
+          maxLength: 20
+        ShippingCountryCode:
+          type: string
+          description: DBA country code. See PDF pages 36-38 for full list of valid country codes.
+          maxLength: 80
+        Physical_Address_Street__c:
+          type: string
+          description: Physical address street. If field exceeds maximum length, value will be truncated.
+          maxLength: 255
+        Physical_Address_City__c:
+          type: string
+          description: Physical address city. If field exceeds maximum length, value will be truncated.
+          maxLength: 80
+        Physical_Address_State__c:
+          type: string
+          description: Physical address state. See PDF pages 36-38 for valid state codes.
+          maxLength: 80
+        Physical_Address_PostalCode__c:
+          type: string
+          description: Physical address postal code - must be 5 digits if provided. Validation error "Mailing Address Zipcode
+            Enter valid Mailing Address Zipcode" if not 5 digits.
+          pattern: ^\d{5}$
+          maxLength: 80
+      description: Billing, shipping, and physical address fields.
+      required:
+      - BillingStreet
+      - BillingCity
+      - BillingStateCode
+      - BillingPostalCode
+      - BillingCountryCode
+      - ShippingStreet
+      - ShippingCity
+    Account_ContactInfo:
+      type: object
+      title: Contact details
+      properties:
+        Phone:
+          type: string
+          description: Phone number - must be 10 digits or (999) 999-9999 format (required). Validation error "Phone/Fax number
+            must be a 10-digit number or in (999) 999-9999 format" if invalid.
+          pattern: ^(\d{10}|\(\d{3}\)\s\d{3}-\d{4})$
+        Fax:
+          type: string
+          description: Fax number - must be 10 digits or (999) 999-9999 format if provided. Validation error "Phone/Fax number
+            must be a 10-digit number or in (999) 999-9999 format" if invalid.
+          pattern: ^(\d{10}|\(\d{3}\)\s\d{3}-\d{4})$
+        App_Email__c:
+          type: string
+          format: email
+          description: Email address (required). Validation error "Enter valid Email Address" if invalid format.
+          maxLength: 100
+        Website:
+          type: string
+          format: uri
+          description: Website address
+          maxLength: 255
+        Customer_Service_Phone__c:
+          type: string
+          description: Customer service phone - must be 10 digits or (999) 999-9999 format (required)
+          pattern: ^(\d{10}|\(\d{3}\)\s\d{3}-\d{4})$
+      description: Primary phone/email/website fields.
+      required:
+      - Phone
+      - App_Email__c
+      - Customer_Service_Phone__c
+    Account_BusinessProfile:
+      type: object
+      title: Business profile
+      properties:
+        Ownership:
+          type: string
+          description: 'Legal entity type (required). Validation error "Sponsorship is required" if missing.
+
+
+            See PDF pages 27-28 for required contact fields based on this ownership type.
+
+            '
+          enum:
+          - Sole Proprietorship
+          - Publicly Traded Limited Liability Company
+          - Privately Held Limited Liability Company
+          - Publicly Traded Corporation
+          - Privately Held Corporation
+          - Government
+          - Tax Exempt
+          - Publicly Traded Partnership
+          - Privately Held Partnership
+          - Financial Institution
+        Industry:
+          type: string
+          description: Industry (required)
+          enum:
+          - Retail
+          - Restaurant
+          - Lodging
+          - Supermarket
+          - Ecommerce
+          - Direct Marketing Services
+          - Cash Advance
+          - Other
+        Industry_Other__c:
+          type: string
+          description: Other industry description (required if Industry is "Other")
+          maxLength: 100
+        Location_Type__c:
+          type: string
+          description: Business location type (required)
+          enum:
+          - Ecommerce
+          - Business Office
+          - Private Residence
+          - Retail Storefront
+          - Bank
+          - Other
+        Location_Other__c:
+          type: string
+          description: Other location description (required if Location_Type__c is "Other")
+          maxLength: 100
+        Years_at_Location__c:
+          type: string
+          description: Years at location (required)
+        Date_Established__c:
+          type: string
+          format: date
+          description: Date established (required)
+        Chain_Non_Chain__c:
+          type: string
+          description: Chain/Non-chain status (required)
+          enum:
+          - Single Outlet
+          - Chain/Multi-Location
+          - Additional Location
+        Description:
+          type: string
+          description: Business description (required)
+          maxLength: 32000
+      description: Business/industry/location characteristics.
+      required:
+      - Ownership
+      - Industry
+      - Location_Type__c
+      - Years_at_Location__c
+      - Date_Established__c
+      - Chain_Non_Chain__c
+      - Description
+    Account_ProcessingHistory:
+      type: object
+      title: Processing history
+      properties:
+        Ever_accepted_credit_cards_before__c:
+          type: boolean
+          description: Ever accepted credit cards before
+        Name_of_Previous_Processor__c:
+          type: string
+          description: Name of previous processor
+          maxLength: 100
+        Ever_had_a_merchant_account_canceled__c:
+          type: boolean
+          description: Ever had a merchant account canceled
+        Name_of_Processor_for_canceled_merchant__c:
+          type: string
+          description: Name of processor for canceled merchant account
+          maxLength: 100
+        Reason_for_cancellation__c:
+          type: string
+          description: Reason for cancellation
+          maxLength: 255
+        Date_of_cancellation__c:
+          type: string
+          format: date
+          description: Date of cancellation
+      description: Prior processing and cancellation history.
+    Opportunity_Submission:
+      type: object
+      title: Application submission
+      properties:
+        attributes:
+          type: object
+          required:
+          - type
+          properties:
+            type:
+              type: string
+              enum:
+              - Opportunity
+        StageName:
+          type: string
+          description: Opportunity stage
+        RecordTypeId:
+          type: string
+          description: 'Record Type ID for the opportunity
+
+
+            Valid Record Type IDs:
+
+            - Cross_Sell: 0122T000000kwYzQAI
+
+            - New_Direct_Merchant_Opportunity: 01234000000QEUSAA4
+
+            - New_Partner_Merchant: 01234000000M77hAAC
+
+            - New_Partner_Opportunity: 01234000000HqAGAA0
+
+            - Read_Only_New_Partner_Merchant: 0123x000001WMxcAAG
+
+            - Renewal: 0122T000000ca5QQAQ
+
+            '
+        Account_Type__c:
+          type: string
+          description: Account type
+          enum:
+          - New Merchant
+          - Conversion Merchant
+          - Renewal Merchant
+          - Cloned Merchant Deal
+        Name:
+          type: string
+          description: Opportunity name
+          maxLength: 255
+        Auto_Submission_to_Underwriting__c:
+          type: boolean
+          description: Auto submit to underwriting
+        Need_Pricing_Exception_Approval__c:
+          type: boolean
+          description: Whether pricing exception approval is needed
+        BET_Table_ID_API_Field__c:
+          type: string
+          description: BET Table ID (required)
+          maxLength: 255
+      description: Fields controlling application submission and routing.
+      required:
+      - attributes
+      - BET_Table_ID_API_Field__c
+    Opportunity_Volumes:
+      type: object
+      title: Volume and ticket metrics
+      properties:
+        Yearly_Net_Revenue__c:
+          type: number
+          format: double
+          description: Forecasted yearly net revenue (required)
+          nullable: true
+        Yearly_Card_Volume__c:
+          type: number
+          format: double
+          description: Yearly card volume
+        High_Monthly_Volume__c:
+          type: number
+          format: double
+          description: High monthly processing volume
+        Avg_Ticket__c:
+          type: number
+          format: double
+          description: Average ticket amount
+        High_Ticket__c:
+          type: number
+          format: double
+          description: High ticket amount
+        Visa_MC_Discover_Volume__c:
+          type: number
+          format: double
+          description: Visa/MC/Discover volume (required)
+        American_Express_Volume__c:
+          type: number
+          format: double
+          description: American Express volume
+      description: Annual volume, monthly volume, and ticket size metrics.
+      required:
+      - Yearly_Net_Revenue__c
+      - Visa_MC_Discover_Volume__c
+    Opportunity_BusinessModel:
+      type: object
+      title: Business model
+      properties:
+        Seasonal_Months__c:
+          type: string
+          description: Seasonal months of operation (multi-select picklist - separate values with semicolons)
+          example: Jan;Feb
+        Customer_Type_B2B_Sales__c:
+          type: number
+          format: double
+          description: Customer Type % B2B Sales (must add up to 100% with B2C per validation rules)
+          minimum: 0
+          maximum: 100
+          nullable: true
+        Customer_Type_B2C_Sales__c:
+          type: number
+          format: double
+          description: Customer Type % B2C Sales (must add up to 100% with B2B per validation rules)
+          minimum: 0
+          maximum: 100
+        Refund_Policy__c:
+          type: string
+          description: Refund policy
+          enum:
+          - Refund in 30 days or Less
+          - No Refunds or Exchanges
+          - Exchanges Only
+          - Not Applicable
+          - Credit V/MC/Dis Account
+          - Full Refund
+          - Refund Credit
+          - Refund Merchandise
+        Days_to_Ship_Deliver__c:
+          type: string
+          description: Days to ship/deliver
+          enum:
+          - Immediate
+          - 1 to 7
+          - 8 to 14
+          - 15 to 30
+          - Over 30
+        Advanced_Payments__c:
+          type: number
+          format: double
+          description: Percentage of advanced payments
+          minimum: 0
+          maximum: 100
+      description: Customer mix, refund/shipping policy, and payment timing.
+    Opportunity_Programs:
+      type: object
+      title: Programs and services
+      properties:
+        Visa_MasterCard__c:
+          type: boolean
+          description: Accepts Visa/MasterCard
+        Discover_MeS_Settlement__c:
+          type: boolean
+          description: Discover MeS settlement
+        Discover_Settlement_Existing_Merchant__c:
+          type: boolean
+          description: Discover settlement existing merchant
+        American_Express_MeS_Settlement__c:
+          type: boolean
+          description: American Express MeS settlement
+        Amex_Settlement_Existing_SE__c:
+          type: string
+          description: AmEx settlement existing SE number
+          maxLength: 255
+        Debit_with_Pin__c:
+          type: boolean
+          description: Debit with PIN
+        ACH__c:
+          type: string
+          description: ACH configuration
+        EBT__c:
+          type: string
+          description: EBT acceptance
+        FCS__c:
+          type: string
+          description: FCS number
+          maxLength: 10
+        Check_Authorization__c:
+          type: string
+          description: Check authorization
+        Name_of_Provider__c:
+          type: string
+          description: Name of provider
+          maxLength: 60
+        Merchant__c:
+          type: string
+          description: Merchant number
+          maxLength: 40
+        Check_pct__c:
+          type: number
+          format: double
+          description: Check percentage
+          minimum: 0
+          maximum: 100
+      description: Card programs, settlement preferences, and optional services.
+    Opportunity_Channels:
+      type: object
+      title: Channel volume split
+      properties:
+        Card_Network_Volume_Internet_CNP__c:
+          type: number
+          format: double
+          description: Card Network Volume % Internet (CNP) - must add up to 100% with other card network volume fields per
+            validation rules
+          minimum: 0
+          maximum: 100
+        Card_Network_Volume_Manually_K_M__c:
+          type: number
+          format: double
+          description: Card Network Volume % Manually K/M (CP) - must add up to 100% with other card network volume fields
+            per validation rules
+          minimum: 0
+          maximum: 100
+        Card_Network_Volume_MO_TO_CNP__c:
+          type: number
+          format: double
+          description: Card Network Volume % MO/TO (CNP) - must add up to 100% with other card network volume fields per validation
+            rules
+          minimum: 0
+          maximum: 100
+        Card_Network_Volume_Swiped_CP__c:
+          type: number
+          format: double
+          description: Card Network Volume % Swiped (CP) - must add up to 100% with other card network volume fields per validation
+            rules
+          minimum: 0
+          maximum: 100
+      description: Distribution of card network volume by channel.
+    Opportunity_ACH_Limits:
+      type: object
+      title: ACH limits
+      properties:
+        ACH__c:
+          type: string
+          description: ACH configuration
+        ACH_Debit_Avg_Dollar_Per_Tx__c:
+          type: number
+          format: double
+          description: ACH Debit average dollar per transaction
+        ACH_Credit_Avg_Dollar_Per_Tx__c:
+          type: number
+          format: double
+          description: ACH Credit average dollar per transaction
+        ACH_Debit_Max_Dollar_Per_Tx__c:
+          type: number
+          format: double
+          description: ACH Debit maximum dollar per transaction
+        ACH_Credit_Max_Dollar_Per_Tx__c:
+          type: number
+          format: double
+          description: ACH Credit maximum dollar per transaction
+        ACH_Debit_Max_Dollar_Per_Day__c:
+          type: number
+          format: double
+          description: ACH Debit maximum dollar per day
+        ACH_Credit_Max_Dollar_Per_Day__c:
+          type: number
+          format: double
+          description: ACH Credit maximum dollar per day
+        ACH_Debit_Max_Tx_Per_Day__c:
+          type: number
+          format: double
+          description: ACH Debit maximum transactions per day
+        ACH_Credit_Max_Tx_Per_Day__c:
+          type: number
+          format: double
+          description: ACH Credit maximum transactions per day
+        ACH_Debit_Max_Dollar_Per_Month__c:
+          type: number
+          format: double
+          description: ACH Debit maximum dollar per month
+        ACH_Credit_Max_Dollar_Per_Month__c:
+          type: number
+          format: double
+          description: ACH Credit maximum dollar per month
+        ACH_Debit_Max_Tx_Per_Month__c:
+          type: number
+          format: double
+          description: ACH Debit maximum transactions per month
+        ACH_Credit_Max_Tx_Per_Month__c:
+          type: number
+          format: double
+          description: ACH Credit maximum transactions per month
+      description: ACH debit/credit limits and thresholds.
+    Opportunity_Notes:
+      type: object
+      title: Notes
+      properties:
+        Merchant_Application_Notes__c:
+          type: string
+          description: Merchant application notes (required)
+          maxLength: 255
+      description: Additional notes for underwriting/processing.
+      required:
+      - Merchant_Application_Notes__c
+    Contact_Identity:
+      type: object
+      title: Contact identity
+      properties:
+        attributes:
+          type: object
+          required:
+          - type
+          properties:
+            type:
+              type: string
+              enum:
+              - Contact
+        FirstName:
+          type: string
+          description: First name
+          maxLength: 40
+        LastName:
+          type: string
+          description: Last name (required)
+          maxLength: 80
+        Title:
+          type: string
+          description: Title (required)
+          maxLength: 128
+        Contact_Role__c:
+          type: string
+          description: 'Contact role (required) - multi-select picklist field. Separate multiple values with semicolons.
+
+
+            Validation rules:
+
+            - Only one "Control Owner" allowed per application
+
+            - Maximum 4 "Beneficial Owner" contacts allowed per application
+
+            - Only 1 "Beneficial Owner" allowed for Sole Proprietorship
+
+            - Required fields vary based on Account Ownership type (see PDF pages 27-28)
+
+
+            Valid values: "Beneficial Owner", "Control Owner", "Other"
+
+            '
+          example: Control Owner;Beneficial Owner
+        Beneficial_Owner_Unique_Field__c:
+          type: string
+          description: Beneficial owner unique field (required for identifying multiple contacts in create/update requests)
+          maxLength: 20
+        Primary__c:
+          type: boolean
+          description: Is primary contact
+        Percentage_Owned__c:
+          type: number
+          format: double
+          description: 'Percentage owned - required if Contact Role includes "Beneficial Owner", must be >= 25% for Beneficial
+            Owners.
+
+
+            Validation errors:
+
+            - "% Owned Principal owner must own 25% or more of the merchant" if < 25% for Beneficial Owner
+
+            - "% Owned is not allowed for Non-Principal Contact Role" if specified for non-Beneficial Owner
+
+            - Sum of all Beneficial Owner % Ownership must not exceed 100%
+
+            '
+          minimum: 0
+          maximum: 100
+        Date_of_Birth__c:
+          type: string
+          format: date
+          description: Date of birth (required)
+        SSN__c:
+          type: string
+          description: 'Social Security Number - must be 9 digits (required).
+
+
+            Validation error if not exactly 9 digits.
+
+            '
+          pattern: ^\d{9}$
+          maxLength: 9
+      description: Identity and role fields for a contact/beneficial owner.
+      required:
+      - attributes
+      - LastName
+      - Title
+      - Date_of_Birth__c
+      - SSN__c
+      - Contact_Role__c
+      - Beneficial_Owner_Unique_Field__c
+    Contact_Address:
+      type: object
+      title: Mailing address
+      properties:
+        MailingStreet:
+          type: string
+          description: Mailing street (required)
+          maxLength: 255
+        MailingCity:
+          type: string
+          description: Mailing city (required)
+          maxLength: 40
+        MailingStateCode:
+          type: string
+          description: Mailing state/province code (required). See PDF pages 36-38 for valid state codes.
+          maxLength: 80
+        MailingPostalCode:
+          type: string
+          description: Mailing zip/postal code (required)
+          maxLength: 20
+        MailingCountryCode:
+          type: string
+          description: Mailing country code. See PDF pages 36-38 for valid country codes.
+          maxLength: 10
+      description: Mailing address fields.
+      required:
+      - MailingStreet
+      - MailingCity
+      - MailingStateCode
+      - MailingPostalCode
+    Contact_Communication:
+      type: object
+      title: Communication
+      properties:
+        Phone:
+          type: string
+          description: Phone number (required)
+        Email:
+          type: string
+          format: email
+          description: Email address (required)
+          maxLength: 80
+      description: Phone and email fields.
+      required:
+      - Phone
+      - Email
+    BCA_Base:
+      type: object
+      title: Bank account metadata
+      properties:
+        attributes:
+          type: object
+          required:
+          - type
+          properties:
+            type:
+              type: string
+              enum:
+              - Business_Checking_Account__c
+        Checking_Account_Unique_Field__c:
+          type: string
+          description: Checking account unique field (required for identifying multiple accounts in create/update requests)
+          maxLength: 20
+        DDA_Type__c:
+          type: string
+          description: 'DDA Type (required when submitting checking account information) - multi-select picklist field. Separate
+            multiple values with semicolons.
+
+
+            Validation rules (PDF page 70):
+
+            - Only one "Deposit" type account allowed per application
+
+            - Only one "Chargeback" type account allowed per application
+
+            - Only one "Fees" type account allowed per application
+
+
+            Example multi-select: "Fees;Deposit"
+
+            '
+          example: Deposit
+      description: Account metadata and required identifiers.
+      required:
+      - attributes
+      - DDA_Type__c
+      - Checking_Account_Unique_Field__c
+    BCA_Bank:
+      type: object
+      title: Bank details
+      properties:
+        Bank_Name__c:
+          type: string
+          description: Bank name (required)
+          maxLength: 255
+        Bank_Street_Address__c:
+          type: string
+          description: Bank street address (required)
+          maxLength: 255
+        Bank_City__c:
+          type: string
+          description: Bank city (required)
+          maxLength: 100
+        Bank_State__c:
+          type: string
+          description: Bank state (required) - US states only
+          maxLength: 100
+        Bank_Zipcode__c:
+          type: string
+          description: Bank zipcode (required)
+          maxLength: 20
+      description: Bank name and bank address details.
+      required:
+      - Bank_Name__c
+      - Bank_Street_Address__c
+      - Bank_City__c
+      - Bank_State__c
+      - Bank_Zipcode__c
+    BCA_Account:
+      type: object
+      title: Account details
+      properties:
+        Checking_Account__c:
+          type: string
+          description: Checking account number (required). Use digits only; keep as string to preserve leading zeros.
+          pattern: ^\d{4,20}$
+          maxLength: 20
+          example: '1212121212'
+        Transit_Routing__c:
+          type: string
+          description: 'Transit routing number - must be 9 digits (required).
+
+
+            Validation error "Please enter a valid 9 digit number" if not 9 digits.
+
+            '
+          pattern: ^\d{9}$
+          maxLength: 100
+        Years_Open__c:
+          type: integer
+          description: Years account has been open (required)
+      description: Routing/account number and years open.
+      required:
+      - Checking_Account__c
+      - Transit_Routing__c
+      - Years_Open__c
+    QLI_Base:
+      type: object
+      title: Base
+      properties:
+        attributes:
+          type: object
+          required:
+          - type
+          properties:
+            type:
+              type: string
+              enum:
+              - QuoteLineItem
+      description: Base object attributes.
+      required:
+      - attributes
+    QLI_TerminalConfig:
+      type: object
+      title: Terminal configuration
+      properties:
+        MerchantE_Invoice__c:
+          type: boolean
+          description: MerchantE Invoice solution
+        POS_Terminals__c:
+          type: boolean
+          description: POS terminals
+        Terminal_Application__c:
+          type: string
+          description: Terminal application type
+          enum:
+          - Retail
+          - Restaurant
+          - Lodging
+          - Cash Advance
+        Auto_Batch_Close_HR__c:
+          type: integer
+          description: Auto batch close hour
+          minimum: 0
+          maximum: 23
+        Auto_Batch_Close_MIN__c:
+          type: integer
+          description: Auto batch close minute
+          minimum: 0
+          maximum: 59
+        Receipt_Header_Line_4__c:
+          type: string
+          description: Receipt header line 4
+          maxLength: 255
+        Receipt_Header_Line_5__c:
+          type: string
+          description: Receipt header line 5
+          maxLength: 255
+        Receipt_Footer__c:
+          type: string
+          description: Receipt footer
+          maxLength: 255
+        Communication_Type__c:
+          type: string
+          description: 'Communication type
+
+
+            Note: Some examples use `IP` instead of `Dial IP`; both are accepted in documentation to reduce friction.'
+          enum:
+          - Dial IP
+          - Wireless
+          - IP
+        Clerk_Server_Prompt_On__c:
+          type: boolean
+          description: Clerk/server prompt on
+        Invoice_Prompt_On__c:
+          type: boolean
+          description: Invoice prompt on
+        Phone_training_for_merchant__c:
+          type: string
+          description: 'Phone training for merchant
+
+
+            Accepts `Yes/No` (preferred) and `yes/no` (seen in legacy samples).'
+          enum:
+          - true
+          - false
+        Access_Code_to_dial_out__c:
+          type: string
+          description: Access code to dial out
+          maxLength: 255
+        AVS_On__c:
+          type: boolean
+          description: AVS on
+        Tip_Option_On__c:
+          type: boolean
+          description: Tip option on
+        Cash_Back__c:
+          type: boolean
+          description: Cash back
+        Batch_Report_Type__c:
+          type: string
+          description: Batch report type
+          enum:
+          - Summary
+          - Batch Detail
+        Authorization_Host__c:
+          type: string
+          description: Authorization host
+          enum:
+          - Sierra
+          - Summit
+          - Transit/MultiPass
+        Authorization_Host_other__c:
+          type: string
+          description: Authorization host other
+          enum:
+          - Sierra
+          - Summit
+          - Transit/MultiPass
+      description: Terminal/POS configuration and receipt/prompt settings.
+    QLI_Shipping:
+      type: object
+      title: Shipping
+      properties:
+        Equipment_Shipping_Address__c:
+          type: string
+          description: Equipment shipping address
+          enum:
+          - Merchant Business Address
+          - Legal Address
+          - Other Address
+        Other_Shipping_Address__c:
+          type: string
+          description: Other shipping address
+          maxLength: 255
+      description: Equipment shipping address fields.
+    QLI_Solutions:
+      type: object
+      title: Solutions and add-ons
+      properties:
+        MerchantE_Invoice__c:
+          type: boolean
+          description: MerchantE Invoice solution
+        MeS_Virtual_Terminal__c:
+          type: boolean
+          description: MeS Virtual Terminal
+        Admin_Email__c:
+          type: string
+          format: email
+          description: Admin email for MeS Virtual Terminal
+        Level_3__c:
+          type: boolean
+          description: Level 3
+        Multi_Merchant__c:
+          type: boolean
+          description: Multi merchant
+        MeS_Virtual_Terminal_Limited__c:
+          type: boolean
+          description: MeS Virtual Terminal Limited
+        Admin_Email_Limited__c:
+          type: string
+          format: email
+          description: Admin email limited
+        MeS_Payment_Gateway__c:
+          type: boolean
+          description: MerchantE Payment Platform
+        URL_Address__c:
+          type: string
+          description: URL address
+          maxLength: 255
+        Name_of_Certified_Shopping_Cart__c:
+          type: string
+          description: Name of certified shopping cart
+          maxLength: 255
+        Payment_Gateway_Administrator_Email__c:
+          type: string
+          format: email
+          description: MerchantE Payment Platform admin email
+        Processing_Option__c:
+          type: string
+          description: Processing option
+          enum:
+          - MeS Hosted Payment
+          - MeS Card Present and Card Not Present
+          - MeS eCommerce
+        MeS_Pay_by_Phone__c:
+          type: boolean
+          description: MeS Tele Pay / MeS Pay by Phone
+        Other_Solution__c:
+          type: boolean
+          description: Other solution
+        Name_of_Other_Solution__c:
+          type: string
+          description: Name of other solution
+          maxLength: 255
+        Solution_Version__c:
+          type: string
+          description: Solution version number
+          maxLength: 255
+        Hosted_payments_fee__c:
+          type: number
+          description: Hosted payments fee
+        MerchantE_Invoice_Monthly_Fee__c:
+          type: number
+          description: MerchantE Invoice monthly fee
+        MerchantE_Invoice_Link_Fee__c:
+          type: number
+          description: MerchantE Invoice Link fee
+        MeS_Activation_Training_for_Merchant__c:
+          type: boolean
+          description: Would Merchant Like Training from MeS Activations? / MeS Activation training for merchant
+        Customer_Rate_not_to_exceed_3_50__c:
+          type: number
+          description: Customer rate (not to exceed 3.5%)
+          maximum: 3.5
+        MerchantE_Invoice_Admin_Email__c:
+          type: string
+          format: email
+          description: MerchantE Invoice administrator email
+        MerchantE_Invoice_Link__c:
+          type: boolean
+          description: MerchantE Invoice Link
+        MerchantE_Invoice_Link_Email__c:
+          type: string
+          format: email
+          description: MerchantE Invoice Link administrator email
+        HostedPayments__c:
+          type: boolean
+          description: Hosted Payments
+        HostedPayAdminEmail__c:
+          type: string
+          format: email
+          description: Hosted Payments administrator email
+        Interchange_Optimization__c:
+          type: boolean
+          description: Interchange Optimization
+        Interchange_Optimization_Email__c:
+          type: string
+          format: email
+          description: Interchange Optimization administrator email
+        MeS_Financial_Services__c:
+          type: boolean
+          description: Money OUT Services / MeS Financial Services
+      description: Payment solutions, portals, optional services, and related emails/URLs.
+    QLI_DigitalCertificates:
+      type: object
+      title: Digital certificates
+      properties:
+        Name_of_the_digital_certificate_issuer__c:
+          type: string
+          description: Name of the digital certificate issuer
+          maxLength: 255
+        Digital_certificate_number_s__c:
+          type: string
+          description: Digital certificate number(s)
+          maxLength: 255
+        Digital_certificate_expiration_date_s__c:
+          type: string
+          description: Digital certificate expiration date(s)
+          maxLength: 255
+        Digital_Certificate_Ownership_Status__c:
+          type: string
+          description: Digital certificate ownership status
+          enum:
+          - Individual
+          - Shared
+      description: Digital certificate details if applicable.
+    QLI_Pricing_VisaMC:
+      type: object
+      title: 'Pricing: Visa/MC/Discover'
+      properties:
+        V_MC_Acceptance_Options__c:
+          type: string
+          description: V/MC acceptance options
+          enum:
+          - Credit/Business Cards
+          - Debit/Prepaid Cards
+          - Both
+        V_MC_Authorization_Fee__c:
+          type: number
+          description: V/MC authorization fee
+        V_MC_Diff_Plus_Plan__c:
+          type: boolean
+          description: 'V/MC Diff Plus Plan (only one V/MC plan can be selected per validation rules).
+
+
+            If selected, only these fields can be submitted:
+
+            - V_MC_Diff_Plus_Percentage__c
+
+            - V_MC_Diff_Plus_Credit_Qualified_Per_Item__c
+
+            - V_MC_Diff_Plus_Credit_Qualified_Rate__c
+
+            - V_MC_Diff_Plus_Debit_Qualified_Per_Item__c
+
+            - V_MC_Diff_Plus_Debit_Qualified_Rate__c
+
+            '
+        V_MC_Diff_Plus_Percentage__c:
+          type: number
+          description: V/MC Diff Plus percentage
+        V_MC_Diff_Plus_Credit_Qualified_Per_Item__c:
+          type: number
+          description: V/MC Diff Plus credit qualified per item
+        V_MC_Diff_Plus_Credit_Qualified_Rate__c:
+          type: number
+          description: V/MC Diff Plus credit qualified rate
+        V_MC_Diff_Plus_Debit_Qualified_Per_Item__c:
+          type: number
+          description: V/MC Diff Plus debit qualified per item
+        V_MC_Diff_Plus_Debit_Qualified_Rate__c:
+          type: number
+          description: V/MC Diff Plus debit qualified rate
+        V_MC_Pass_Through_Plan__c:
+          type: boolean
+          description: 'V/MC Pass Through Plan (only one V/MC plan can be selected per validation rules).
+
+
+            If selected, only these fields can be submitted:
+
+            - V_MC_Pass_Through_Per_Item__c
+
+            - V_MC_Pass_Through_Rate__c
+
+            '
+        V_MC_Pass_Through_Per_Item__c:
+          type: number
+          description: V/MC Pass Through per item
+        V_MC_Pass_Through_Rate__c:
+          type: number
+          description: V/MC Pass Through rate
+        V_MC_Tiered_Plan__c:
+          type: boolean
+          description: 'V/MC Tiered Plan (only one V/MC plan can be selected per validation rules).
+
+
+            If selected, only Tiered fields can be submitted.
+
+            '
+        V_MC_Tiered_Commercial_Qual_Per_Item__c:
+          type: number
+          description: V/MC Tiered commercial qualified per item
+        V_MC_Tiered_Commercial_Qual_Rate__c:
+          type: number
+          description: V/MC Tiered commercial qualified rate
+        V_MC_Tiered_Credit_Qualified_Per_Item__c:
+          type: number
+          description: V/MC Tiered credit qualified per item
+        V_MC_Tiered_Credit_Qualified_Rate__c:
+          type: number
+          description: V/MC Tiered credit qualified rate
+        V_MC_Tiered_Debit_Qualified_Per_Item__c:
+          type: number
+          description: V/MC Tiered debit qualified per item
+        V_MC_Tiered_Debit_Qualified_Rate__c:
+          type: number
+          description: V/MC Tiered debit qualified rate
+        V_MC_Tiered_Mid_Qual_Per_Item__c:
+          type: number
+          description: V/MC Tiered mid qual per item
+        V_MC_Tiered_Mid_Qual_Rate__c:
+          type: number
+          description: V/MC Tiered mid qual rate
+        V_MC_Tiered_Non_Qual_Per_Item__c:
+          type: number
+          description: V/MC Tiered non qual per item
+        V_MC_Tiered_Non_Qual_Rate__c:
+          type: number
+          description: V/MC Tiered non qual rate
+        V_MC_Tiered_Rewards_Rate__c:
+          type: number
+          description: V/MC Tiered rewards rate
+        V_MC_Tiered_Rewards_Rate_Per_Item__c:
+          type: number
+          description: V/MC Tiered rewards rate per item
+        BET_Table_ID_API_Field__c:
+          type: string
+          description: BET Table ID - lookup field
+          maxLength: 255
+      description: Visa/MC/Discover pricing plans and rate tables.
+    QLI_Pricing_Amex:
+      type: object
+      title: 'Pricing: American Express'
+      properties:
+        Amex_Authorization_Fee__c:
+          type: number
+          description: Amex authorization fee
+        Amex_Tiered_Plan__c:
+          type: boolean
+          description: 'Amex Bundled Plan (only one Amex plan can be selected per validation rules).
+
+
+            If selected, only these fields can be submitted:
+
+            - Amex_Tier_3_Per_Item__c
+
+            - Amex_Tier_3_Rate__c
+
+            '
+        Amex_Tier_3_Per_Item__c:
+          type: number
+          description: Amex Bundled per item
+        Amex_Tier_3_Rate__c:
+          type: number
+          description: Amex Bundled rate
+        Amex_Pass_Through_Plan__c:
+          type: boolean
+          description: 'Amex Pass Through Plan (only one Amex plan can be selected per validation rules).
+
+
+            If selected, only these fields can be submitted:
+
+            - Amex_Pass_Through_Per_Item__c
+
+            - Amex_Pass_Through_Rate__c
+
+            '
+        Amex_Pass_Through_Per_Item__c:
+          type: number
+          description: Amex Pass Through per item
+        Amex_Pass_Through_Rate__c:
+          type: number
+          description: Amex Pass Through rate
+      description: American Express pricing fields.
+    QLI_Pricing_PinDebit:
+      type: object
+      title: 'Pricing: PIN debit'
+      properties:
+        Pin_Debit_Authorization_Fee__c:
+          type: number
+          description: Pin Debit authorization fee
+        Pin_Debit_Pass_Through_Plan__c:
+          type: boolean
+          description: Pin Debit Pass Through Plan
+        Pin_Debit_Pass_Through_Rate__c:
+          type: number
+          description: Pin Debit Pass Through rate
+        Pin_Debit_Pass_Through_Per_Item__c:
+          type: number
+          description: Pin Debit Pass Through per item
+      description: PIN debit pricing fields.
+    QLI_Fees:
+      type: object
+      title: Monthly and other fees
+      properties:
+        Monthly_Fees_Other_Fee_Name_1__c:
+          type: string
+          description: Monthly fees other fee name 1
+          enum:
+          - USAePay Monthly
+          - PayFlow Pro Monthly
+          - PayFlow Link Monthly
+          - SwipeSimple Monthly
+          - Solution Platform
+          - EmployeePlus Payouts
+          - Pre-Imbursements
+          - Interchange Optimization
+          - MerchantE Invoice
+        Monthly_Fees_Other_Fee_Name_2__c:
+          type: string
+          description: Monthly fees other fee name 2
+          enum:
+          - USAePay Monthly
+          - PayFlow Pro Monthly
+          - PayFlow Link Monthly
+          - SwipeSimple Monthly
+          - Solution Platform
+          - EmployeePlus Payouts
+          - Pre-Imbursements
+          - Interchange Optimization
+          - MerchantE Invoice
+        Monthly_Fees_Other_Fee_Name_3__c:
+          type: string
+          description: Monthly fees other fee name 3
+          maxLength: 255
+        Monthly_Fees_Other_Fee_Name_4__c:
+          type: string
+          description: Monthly fees other fee name 4
+          maxLength: 255
+        Monthly_Fees_Other_Fee_Name_5__c:
+          type: string
+          description: Monthly fees other fee name 5
+          enum:
+          - USAePay Monthly
+          - PayFlow Pro Monthly
+          - PayFlow Link Monthly
+          - SwipeSimple Monthly
+          - Solution Platform
+          - EmployeePlus Payouts
+          - Pre-Imbursements
+          - Interchange Optimization
+          - MerchantE Invoice
+        Monthly_Fees_Other_Fee_Name_6__c:
+          type: string
+          description: Monthly fees other fee name 6
+          enum:
+          - USAePay Monthly
+          - PayFlow Pro Monthly
+          - PayFlow Link Monthly
+          - SwipeSimple Monthly
+          - Solution Platform
+          - EmployeePlus Payouts
+          - Pre-Imbursements
+          - Interchange Optimization
+          - MerchantE Invoice
+        Monthly_Fees_Other_Fee_Amount_1__c:
+          type: number
+          description: Monthly fees other fee amount 1
+        Monthly_Fees_Other_Fee_Amount_2__c:
+          type: number
+          description: Monthly fees other fee amount 2
+        Monthly_Fees_Other_Fee_Amount_3__c:
+          type: number
+          description: Monthly fees other fee amount 3
+        Monthly_Fees_Other_Fee_Amount_4__c:
+          type: number
+          description: Monthly fees other fee amount 4
+        Monthly_Fees_Other_Fee_Amount_5__c:
+          type: number
+          description: Monthly fees other fee amount 5
+        Monthly_Fees_Other_Fee_Amount_6__c:
+          type: number
+          description: Monthly fees other fee amount 6
+        Surcharge_Amount__c:
+          type: number
+          description: Surcharge amount ($)
+        Gross_Settlement_Fee__c:
+          type: number
+          description: Gross settlement fee
+        Surcharge__c:
+          type: boolean
+          description: Surcharge
+        Surcharge_Fee__c:
+          type: boolean
+          description: Surcharge fee
+      description: Monthly fees, setup fees, and related charges.
+    QLI_ACH:
+      type: object
+      title: ACH services and fees
+      properties:
+        ACH_Transaction_Fee_Amount__c:
+          type: number
+          description: ACH transaction fee amount
+        ACH_Transaction_Fee__c:
+          type: number
+          description: ACH transaction fee percentage
+        ACH_Monthly_Service_Fee__c:
+          type: number
+          description: ACH monthly service fee
+        ACH_Return_Re_presentment_Fee__c:
+          type: number
+          description: ACH return/re-presentment fee
+        ACH_Unauthorized_Return_State_Fee__c:
+          type: number
+          description: ACH unauthorized return state fee
+        ACH_SmartPay_Express_Setup_Fee__c:
+          type: number
+          description: ACH SmartPay Express setup fee
+        ACH_SmartPay_Express_Monthly_Fee__c:
+          type: number
+          description: ACH SmartPay Express monthly fee
+        ACH_Hosted_Pay_Monthly_Fee__c:
+          type: number
+          description: ACH Hosted Pay monthly fee
+        ACH_Additional_Location_Monthly_Fee__c:
+          type: number
+          description: ACH additional location monthly fee
+        ACH_Additional_Bk_Account_Monthly_Fee__c:
+          type: number
+          description: ACH additional bank account monthly fee
+        ACH_Services__c:
+          type: boolean
+          description: ACH services
+        ACH_Web_API__c:
+          type: boolean
+          description: ACH Web API / Web Services API
+        ACH_NACHA_File__c:
+          type: boolean
+          description: ACH NACHA file / FedReady/NACHA File Upload
+        ACH_CPP__c:
+          type: boolean
+          description: ACH CPP / Customer Payment Portal (CPP)
+        ACH_Debit__c:
+          type: boolean
+          description: ACH debit
+        ACH_Recurring_Debit__c:
+          type: boolean
+          description: ACH recurring debit
+        ACH_Credit__c:
+          type: boolean
+          description: ACH credit
+        ACH_Recurring_Credit__c:
+          type: boolean
+          description: ACH recurring credit
+        ACH_Refund__c:
+          type: boolean
+          description: ACH refund
+        ACH_Web_Check__c:
+          type: boolean
+          description: ACH web check / Web - Internet Check
+        ACH_Tel_Check__c:
+          type: boolean
+          description: ACH tel check / TEL - Telephone Check
+        ACH_Max_Re_Presentments__c:
+          type: string
+          description: ACH Face Amount Maximum Number of Re-Presentments
+          enum:
+          - 0~ None
+          - 1~ 1 re-presentment
+          - 2~ 2 re-presentments
+        ACH_First_Re_Presentment__c:
+          type: string
+          description: Timing of First Re-Presentment
+          enum:
+          - 0 (Immediately following ACH return)
+          - 1 (1 day following ACH return)
+          - 2 (2 days following ACH return)
+          - 3 (3 days following ACH return)
+          - 4 (4 days following ACH return)
+          - 5 (5 days following ACH return)
+          - 6 (6 days following ACH return)
+          - 7 (7 days following ACH return)
+          - 8 (8 days following ACH return)
+          - 9 (9 days following ACH return)
+          - 10 (10 days following ACH return)
+          - 15 (15 days following ACH return)
+          - 20 (20 days following ACH return)
+          - 25 (25 days following ACH return)
+          - 30 (30 days following ACH return)
+        ACH_Final_Re_Presentment__c:
+          type: string
+          description: Timing of Final Re-Presentment
+          enum:
+          - 0~ Final ACH re-presentment will occur after a fixed number of days
+          - Final ACH re-presentment will coincide with common paydays
+        ACH_Final_Re_Presentment_Days__c:
+          type: number
+          description: ACH Face Amount Final Re-Presentment Days
+        ACH_RCF_Max_Re_Presentments__c:
+          type: string
+          description: ACH Returned Check Fee Maximum Re-Presentments
+          enum:
+          - 0~ None
+          - 1~
+          - 2~
+          - 3~
+        ACH_RCF_Amount__c:
+          type: number
+          description: ACH Returned Check Fee Amount
+        ACH_RCF_Settlement_Account__c:
+          type: string
+          description: ACH Returned Check Fee Settlement Account
+          enum:
+          - 0~ Deposit collected fees into Customer's settlement bank account
+          - 1~ Deposit collected fees into Other bank account
+      description: ACH service flags, limits, and ACH fee settings.
+    QLI_Training:
+      type: object
+      title: Training
+      properties:
+        MeS_Activation_Training_for_Merchant__c:
+          type: boolean
+          description: Would Merchant Like Training from MeS Activations? / MeS Activation training for merchant
+        Product_Training__c:
+          type: boolean
+          description: Product/POS training
+        PCI_Training__c:
+          type: boolean
+          description: PCI training
+        Business_Platform_Training__c:
+          type: boolean
+          description: Business platform training
+        Level_3_Training__c:
+          type: boolean
+          description: Level 3 training
+        Additional_Info_Training__c:
+          type: string
+          description: Additional information (optional) / Additional info training
+          maxLength: 130768
+      description: Training and activation options.
+    QLI_Equipment:
+      type: object
+      title: Equipment
+      properties:
+        Equipment_Shipping_Address__c:
+          type: string
+          description: Equipment shipping address
+          enum:
+          - Merchant Business Address
+          - Legal Address
+          - Other Address
+        Equipment_Rent_Buy_Own__c:
+          type: string
+          description: 'Equipment rent/buy/own
+
+
+            Accepts `Rent/Buy/Own` (preferred) and `rent/buy/own` (seen in legacy samples).'
+          enum:
+          - Rent
+          - Buy
+          - Own
+          - rent
+          - buy
+          - own
+        Equipment_Per_Item__c:
+          type: number
+          description: Equipment per item cost ($)
+        Equipment_Quantity__c:
+          type: integer
+          description: Equipment quantity
+        Equipment_Months__c:
+          type: integer
+          description: Equipment number of months (#)
+        Product_Name__c:
+          type: string
+          description: Product name (required when submitting equipment information)
+          maxLength: 200
+        Equipment_Unique_Field__c:
+          type: string
+          description: Equipment unique field (for identifying multiple equipment items in create/update requests)
+          maxLength: 20
+      description: Equipment selection and pricing/quantity/term.
+    QLI_Other:
+      type: object
+      title: Other fields
+      properties:
+        ARU__c:
+          type: number
+          description: ARU fee
+        Operator_Assisted__c:
+          type: number
+          description: Operator assisted fee
+        AVS__c:
+          type: number
+          description: AVS fee
+        Bank_Referral__c:
+          type: number
+          description: Bank referral fee
+        JCB_CUP__c:
+          type: number
+          description: JCB/CUP fee
+        EBT__c:
+          type: number
+          description: EBT fee
+        Other_Authorization_Fee_Other_Fee_Name__c:
+          type: string
+          description: Other authorization fee name 1
+          enum:
+          - PayFlow Pro
+          - MeS Payment Gateway
+        Other_Authorization_Fee_Other_Fee_Name2__c:
+          type: string
+          description: Other authorization fee name 2
+          maxLength: 255
+        Other_Authorization_Fee_Other_Fee_Amt1__c:
+          type: number
+          description: Other authorization fee amount 1
+        Other_Authorization_Fee_Other_Fee_Amt2__c:
+          type: number
+          description: Other authorization fee amount 2
+        Account_Application__c:
+          type: number
+          description: Account application fee
+        New_Account_Setup__c:
+          type: number
+          description: New account setup fee
+        One_Time_Account_Updater__c:
+          type: number
+          description: One time account updater fee
+        Wireless_Setup__c:
+          type: number
+          description: Wireless setup fee
+        One_Time_Fees_Other_Fee_Name_1__c:
+          type: string
+          description: One time fees other fee name 1
+          enum:
+          - USAePay Setup
+          - PayFlow Pro Setup
+          - PayFlow Link Setup
+          - MeS VT Setup
+          - MeS Limited Setup
+          - MeS Payment Gateway setup
+          - SwipeSimple Setup
+        One_Time_Fees_Other_Fee_Name_2__c:
+          type: string
+          description: One time fees other fee name 2
+          maxLength: 255
+        One_Time_Fees_Other_Fee_Amount_1__c:
+          type: number
+          description: One time fees other fee amount 1
+        One_Time_Fees_Other_Fee_Amount_2__c:
+          type: number
+          description: One time fees other fee amount 2
+        Minimum_Discount__c:
+          type: number
+          description: Minimum discount fee
+        Chargeback_Fee__c:
+          type: number
+          description: Chargeback fee
+        Return_NSF__c:
+          type: number
+          description: Return NSF fee
+        Batch_Fee__c:
+          type: number
+          description: Batch fee
+        Internet_Per_Trans__c:
+          type: number
+          description: Internet per transaction fee
+        Per_Occurrence_Account_Updater__c:
+          type: number
+          description: Per occurrence account updater fee
+        Yearly_Admin__c:
+          type: number
+          description: Yearly admin fee
+        Yearly_Payment_Gateway__c:
+          type: number
+          description: Yearly payment gateway fee
+        Per_Occurrence_Other_Fee_Name_1__c:
+          type: string
+          description: Per occurrence other fee name 1
+          maxLength: 255
+        Per_Occurrence_Other_Fee_Name_2__c:
+          type: string
+          description: Per occurrence other fee name 2
+          maxLength: 255
+        Per_Occurrence_Other_Fee_Amount_1__c:
+          type: number
+          description: Per occurrence other fee amount 1
+        Per_Occurrence_Other_Fee_Amount_2__c:
+          type: number
+          description: Per occurrence other fee amount 2
+        Statement_Fee__c:
+          type: number
+          description: Statement fee
+        Electronic_Statement__c:
+          type: boolean
+          description: Electronic statement
+        Paper_Statement__c:
+          type: boolean
+          description: Paper statement
+        PCI_Admin_Monthly__c:
+          type: number
+          description: PCI admin monthly fee
+        PCI_Late_Validation__c:
+          type: number
+          description: PCI late validation fee
+        Wireless_Fees__c:
+          type: number
+          description: Wireless fees
+        Business_Hub_Account_Service_Monthly_Fee__c:
+          type: number
+          description: 'Business Hub/Account Service monthly fee.
+
+
+            Validation rule (PDF page 71): Must be $29.95 or $0.00 only.
+
+            '
+          enum:
+          - 0
+          - 29.95
+      description: Other configuration and program fields.
+    SObjectId:
+      type: object
+      properties:
+        id:
+          type: string
+          description: Salesforce record Id (SFId) of the object being updated. Include in update requests.
+          example: 00618000006PCkHAAW
+    OpportunityUpdate:
+      allOf:
+      - $ref: '#/components/schemas/Opportunity'
+      - type: object
+        required:
+        - id
+      description: Opportunity payload for update requests (requires `id`).
+      x-parameterGroups:
+      - name: Required
+        fields: []
+      - name: Recommended
+        fields: []
+      - name: Others
+        fields: []
+    AccountUpdate:
+      allOf:
+      - $ref: '#/components/schemas/Account'
+      - type: object
+        required:
+        - id
+      description: Account payload for update requests (requires `id`).
+      x-parameterGroups:
+      - name: Required
+        fields: []
+      - name: Recommended
+        fields: []
+      - name: Others
+        fields: []
+    ContactUpdate:
+      allOf:
+      - $ref: '#/components/schemas/Contact'
+      - type: object
+        required:
+        - id
+      description: Contact payload for update requests (requires `id`).
+      x-parameterGroups:
+      - name: Required
+        fields: []
+      - name: Recommended
+        fields: []
+      - name: Others
+        fields: []
+    BusinessCheckingAccountUpdate:
+      allOf:
+      - $ref: '#/components/schemas/BusinessCheckingAccount'
+      - type: object
+        required:
+        - id
+      description: BusinessCheckingAccount payload for update requests (requires `id`).
+      x-parameterGroups:
+      - name: Required
+        fields: []
+      - name: Recommended
+        fields: []
+      - name: Others
+        fields: []
+    QuoteLineItemUpdate:
+      allOf:
+      - $ref: '#/components/schemas/QuoteLineItem'
+      - type: object
+        required:
+        - id
+      description: QuoteLineItem payload for update requests (requires `id`).
+      x-parameterGroups:
+      - name: Required
+        fields: []
+      - name: Recommended
+        fields: []
+      - name: Others
+        fields: []
+    SalesforceCreateResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          description: Id of the created record
+          example: 00P1800000ABCdEAAW
+        success:
+          type: boolean
+          example: true
+        errors:
+          type: array
+          items:
+            type: string
+      x-parameterGroups:
+      - name: Common
+        fields:
+        - id
+        - success
+      - name: When Provided
+        fields:
+        - errors
+      - name: Other Fields
+        fields: []
+  parameters:
+    AuthorizationHeader:
+      name: Authorization
+      in: header
+      required: true
+      schema:
+        type: string
+      description: 'OAuth 2.0 access token. Format: `Bearer <access_token>`.'
+tags:
+- name: Authentication
+  description: OAuth 2.0 authentication endpoints
+- name: Merchant Application
+  description: Create and update merchant applications
+- name: Retrieval
+  description: Retrieve created records
+- name: Attachments
+  description: Submit file attachments
+- name: Applications
+  description: Create/update applications and submit attachments.
+- name: Lookup
+  description: Read back created Salesforce objects by Opportunity/Quote ID.
+- name: Salesforce (internal)
+  description: Internal/raw Salesforce endpoints (hidden in portal-friendly views).

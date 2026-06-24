@@ -1,0 +1,826 @@
+openapi: 3.0.3
+info:
+  title: MerchantE Split Funding API
+  description: 'The Split Funding API enables partners'' businesses to split their
+    daily settlement amount into two different bank accounts.
+
+
+    This API allows creation or modification of MerchantFundingAmount for approved,
+    non-PIN-debit, cardholder-debit or credit Transactions.
+
+
+    **Documentation Resources:**
+
+    - MerchantE Technical Documentation: https://anypoint.mulesoft.com/exchange/portals/merchante-solutions-3/
+
+    - PCI Security Standards: https://www.pcisecuritystandards.org/
+
+    - NAICS Lookup: https://www.census.gov/econ/isp/
+
+
+    **Copyright Notice:**
+
+    ©2024 Merchant eSolutions, Inc. All rights reserved.
+
+
+    Merchant e-Solutions, Inc. is a registered Agent of KeyBank, Cleveland, OH, and
+    a registered ISO/MSP of Synovus Bank, Columbus, GA and FFB, Fresno, CA.
+
+
+    **Trademarks:**
+
+    - Mastercard® is a federally registered trademark of Mastercard International,
+    Inc.
+
+    - Visa® is a federally registered trademark of Visa, U.S.A., Inc.
+
+    - Discover® Card is a federally registered trademark of Discover Financial Services
+    Inc.
+
+    - American Express® is a federally registered trademark of American Express Company.
+
+    - ZIP code® and ZIP + 4® are federally registered trademarks of the United States
+    Postal Service.
+
+    '
+  version: '1.2'
+  contact:
+    name: MerchantE Support
+    url: https://www.merchante.com
+  x-address:
+    street: 1150 Sanctuary Parkway, Suite 300
+    city: Alpharetta
+    state: GA
+    zip: '30009'
+servers:
+- url: https://{host}{basePath}
+  description: API server. The PDF specifies the resource as [root]/funding-amounts;
+    verify the host and any base path (for example, /v1) with MerchantE.
+  variables:
+    host:
+      default: test.api.merchante.com
+      description: Hostname for the test/certification environment.
+    basePath:
+      default: ''
+      description: Optional base path if your environment uses versioned routing (for
+        example, /v1).
+      enum:
+      - ''
+      - /v1
+security:
+- BasicAuth: []
+paths:
+  /funding-amounts:
+    post:
+      summary: Create or modify funding amounts
+      description: 'Used to create or modify MerchantFundingAmount for approved, non-PIN-debit,
+        cardholder-debit or credit Transactions.
+
+
+        **Request Constraints:**
+
+        - Can contain 1 to 10,000 Transaction(s)
+
+        - Must not contain any debit Transactions that have been settled
+
+        - Can contain credit transactions that have been settled
+
+        - Must not contain duplicate Transactions
+
+        - Debit transactions can be specified by either retrievalReferenceNumber or
+        id (transactionId), but not both
+
+        - Credit transactions can only be specified by id (transactionId)
+
+
+        **HTTP Status Code Evaluation:**
+
+        Status Code conditions are assessed in the following order, and the first
+        matching condition determines the response:
+
+        1. 400 - Request body issues
+
+        2. 401 - Authentication failure
+
+        3. 403 - Profile inactive
+
+        4. 500 - Server error
+
+        5. 200 - Success (none of above conditions met)
+
+        '
+      operationId: createFundingAmounts
+      tags:
+      - Funding Amounts
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FundingAmountsRequest'
+            examples:
+              twoTransactions:
+                summary: Two transactions with split funding
+                value:
+                  transactions:
+                  - id: ABC12345678901234567890123456789
+                    merchantFundingAmounts:
+                    - merchantId: '9999999999'
+                      amount: '10000'
+                    - merchantId: '8888888888'
+                      amount: '500'
+                  - id: XYZ12345678901234567890123456789
+                    merchantFundingAmounts:
+                    - merchantId: '9999999999'
+                      amount: '10000'
+                    - merchantId: '8888888888'
+                      amount: '500'
+              usingRRN:
+                summary: Debit transaction using retrievalReferenceNumber
+                value:
+                  transactions:
+                  - retrievalReferenceNumber: '123456789012'
+                    merchantFundingAmounts:
+                    - merchantId: '9999999999'
+                      amount: '5000'
+                    - merchantId: '8888888888'
+                      amount: '2500'
+      responses:
+        '200':
+          description: 'Request processed successfully.
+
+
+            **Note:** A 200 response may still contain transaction-level errors in
+            the transactionLevelErrors array.
+
+            Check successfulTransactionCount vs transactionCount to determine if all
+            transactions succeeded.
+
+            '
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FundingAmountsResponse'
+              examples:
+                successWithError:
+                  summary: Partial success with one transaction error
+                  value:
+                    transactionCount: '2'
+                    merchantFundingAmountCount: '4'
+                    amountsSum: '21000'
+                    successfulTransactionCount: '1'
+                    errorCode: ''
+                    errorMessage: ''
+                    transactionLevelErrors:
+                    - transactionId: XYZ12345678901234567890123456789
+                      retrievalReferenceNumber: ''
+                      errorCode: '100'
+                      errorMessage: unknown transactionId
+                allSuccess:
+                  summary: All transactions processed successfully
+                  value:
+                    transactionCount: '2'
+                    merchantFundingAmountCount: '4'
+                    amountsSum: '21000'
+                    successfulTransactionCount: '2'
+                    errorCode: ''
+                    errorMessage: ''
+                    transactionLevelErrors: []
+                requestLevelError:
+                  summary: Request-level error (duplicate transactions)
+                  value:
+                    transactionCount: '2'
+                    merchantFundingAmountCount: '4'
+                    amountsSum: '21000'
+                    successfulTransactionCount: '0'
+                    errorCode: '3'
+                    errorMessage: Duplicate transactions in request
+                    transactionLevelErrors: []
+        '400':
+          description: 'Bad Request - Request body cannot be processed.
+
+
+            **Conditions:**
+
+            - Unsupported content type
+
+            - Malformed body
+
+            - Values exceeding the max field size
+
+            - Values of incorrect data type
+
+            - Too many or not enough records
+
+
+            **Note:** No response body is provided for this error.
+
+            '
+        '401':
+          description: 'Unauthorized - Authentication failure.
+
+
+            **Conditions:**
+
+            - The provided profileId is unknown
+
+            - The provided profileKey is incorrect for the provided profileId
+
+
+            **Note:** No response body is provided for this error.
+
+            '
+        '403':
+          description: 'Forbidden - Profile inactive.
+
+
+            **Conditions:**
+
+            - The provided profileId and profileKey is known and correct
+
+            - But the profileId is associated with a profile that is no longer active
+            (suspended or closed)
+
+
+            **Note:** No response body is provided for this error.
+
+            '
+        '500':
+          description: 'Internal Server Error - The server encountered an unexpected
+            error and could not process the request.
+
+
+            **Note:** No response body is provided for this error.
+
+            '
+components:
+  securitySchemes:
+    BasicAuth:
+      type: http
+      scheme: basic
+      description: 'The Authorization field contains the credentials of the client
+        making the request and uses the ''Basic'' HTTP Authentication Scheme.
+
+
+        The value in the Authorization field has the following format:
+
+        `Basic [encoded credentials]`
+
+
+        Where [encoded credentials] is constructed as follows:
+
+        1. The **profileId** and **profileKey** of the Terminal making the request
+        are combined with a colon separating the two values
+
+        2. The resulting string is encoded using base-64
+
+        3. The resulting encoded string is appended to the literal ''Basic ''
+
+
+        **Example:** `Basic cHJvZmlsZUlkOnByb2ZpbGVLZXk=`
+
+        '
+  schemas:
+    FundingAmountsRequest:
+      type: object
+      description: 'Request body for the Funding Amounts endpoint.
+
+
+        Contains one or more Transaction objects, each with one or more MerchantFundingAmount
+        objects.
+
+        '
+      required:
+      - transactions
+      properties:
+        transactions:
+          type: array
+          description: Array of Transaction objects (1 to 10,000 transactions allowed)
+          minItems: 1
+          maxItems: 10000
+          items:
+            $ref: '#/components/schemas/Transaction'
+      x-parameterGroups:
+      - name: Required
+        fields:
+        - transactions
+      - name: Recommended
+        fields: []
+      - name: Others
+        fields: []
+    Transaction:
+      oneOf:
+      - $ref: '#/components/schemas/TransactionById'
+      - $ref: '#/components/schemas/TransactionByRetrievalReferenceNumber'
+      description: Transaction identifier. For debit transactions, specify either
+        `id` or `retrievalReferenceNumber` (but not both). For credit transactions,
+        specify `id`.
+      x-parameterGroups:
+      - name: Required
+        fields:
+        - merchantFundingAmounts
+        - id OR retrievalReferenceNumber
+      - name: Recommended
+        fields: []
+      - name: Others
+        fields: []
+    MerchantFundingAmount:
+      type: object
+      description: 'Used to specify a Merchant and the amount the Merchant should
+        be funded/debited for a given Transaction.
+
+
+        **Constraints:**
+
+        - A Transaction can contain 1 to 10 MerchantFundingAmount(s)
+
+        - For a given Transaction, merchantId must be unique (no duplicate merchantIds)
+
+        - The sum of all amounts must equal the transaction amount
+
+        '
+      required:
+      - merchantId
+      - amount
+      properties:
+        merchantId:
+          type: string
+          description: 'ME''s unique identifier of the Merchant that will be funded
+            the specified amount for the corresponding Transaction.
+
+
+            For a given Transaction, merchantId must be unique.
+
+            '
+          maxLength: 16
+          pattern: ^[0-9]+$
+          example: '9999999999'
+        amount:
+          type: string
+          description: 'The unsigned amount (> 0) the corresponding Merchant should
+            be funded/debited for the corresponding Transaction.
+
+
+            **Currency:** The currency of the amount is implied and is the same as
+            the currency of the corresponding Transaction.
+
+
+            **Decimal Position:** The location of the decimal point is implied based
+            on the minor units of the currency of the corresponding Transaction.
+
+
+            **Example:** If the currency of the Transaction is USD, then an amount
+            of "100" is interpreted as 1.00 USD.
+
+
+            **Sum Requirement:** The sum of all amount(s) of a given MerchantFundingAmount
+            must equal:
+
+            - The current authorized amount (if Transaction has not been captured
+            for settlement)
+
+            - The settlement amount (if Transaction has been captured but not yet
+            settled)
+
+            '
+          maxLength: 9
+          pattern: ^(?!0+$)[0-9]+$
+          example: '10000'
+      x-parameterGroups:
+      - name: Required
+        fields:
+        - merchantId
+        - amount
+      - name: Recommended
+        fields: []
+      - name: Others
+        fields: []
+    FundingAmountsResponse:
+      type: object
+      description: 'The response body for the Funding Amounts endpoint.
+
+
+        Contains fields that summarize the request, request-level error fields, and
+        zero or many TransactionLevelError objects.
+
+
+        **Important:** When the response contains HTTP Status Code other than 200,
+        a body will NOT be provided in the response.
+
+        '
+      required:
+      - transactionCount
+      - merchantFundingAmountCount
+      - amountsSum
+      - successfulTransactionCount
+      - transactionLevelErrors
+      properties:
+        transactionCount:
+          type: string
+          description: The number of Transactions specified in the corresponding request.
+          maxLength: 6
+          pattern: ^[0-9]+$
+          example: '2'
+        merchantFundingAmountCount:
+          type: string
+          description: The number of MerchantFundingAmount(s) specified in the corresponding
+            request.
+          maxLength: 7
+          pattern: ^[0-9]+$
+          example: '4'
+        amountsSum:
+          type: string
+          description: 'The hash sum of amount(s) for all MerchantFundingAmount(s)
+            specified in the corresponding request.
+
+
+            **Note:** Since the request could contain Transactions in more than one
+            currency, the value of amountsSum should NOT be interpreted as a monetary
+            sum of amounts with a single currency.
+
+            '
+          maxLength: 15
+          pattern: ^[0-9]+$
+          example: '21000'
+        successfulTransactionCount:
+          type: string
+          description: The number of Transactions specified in the corresponding request
+            that did not contain errors and that were processed successfully.
+          maxLength: 6
+          pattern: ^[0-9]+$
+          example: '1'
+        errorCode:
+          type: string
+          description: 'Specifies a client error that occurred at the request level.
+
+
+            When an error occurs at the request level, the value of successfulTransactionCount
+            will be zero.
+
+            When no error occurs at the request level, no value for errorCode and
+            errorMessage will be provided in the response.
+
+
+            **Request-Level Error Codes:**
+
+            | Code | Condition |
+
+            |------|-----------|
+
+            | 1 | Both retrievalReferenceNumber and transactionId were provided for
+            a Transaction |
+
+            | 2 | Neither retrievalReferenceNumber nor transactionId were provided
+            for a Transaction |
+
+            | 3 | Duplicate Transactions are specified in the request |
+
+            '
+          maxLength: 3
+          pattern: ^[0-9]*$
+          enum:
+          - ''
+          - '1'
+          - '2'
+          - '3'
+          example: ''
+          default: ''
+        errorMessage:
+          type: string
+          description: 'A human-readable description of the corresponding errorCode.
+
+
+            **Warning:** For a given error code, there is no guarantee of what the
+            corresponding errorMessage will be. Thus, no programming decisions should
+            be made based on this value.
+
+            '
+          maxLength: 200
+          example: ''
+          default: ''
+        transactionLevelErrors:
+          type: array
+          description: 'Array of transaction-level errors. Contains zero or many TransactionLevelError
+            objects.
+
+
+            Each error in this array corresponds to a transaction that failed to process.
+
+            '
+          items:
+            $ref: '#/components/schemas/TransactionLevelError'
+      x-parameterGroups:
+      - name: Common
+        fields:
+        - transactionCount
+        - successfulTransactionCount
+      - name: When Provided
+        fields:
+        - errorCode
+        - errorMessage
+        - transactionLevelErrors
+      - name: Other Fields
+        fields:
+        - merchantFundingAmountCount
+        - amountsSum
+    TransactionLevelError:
+      type: object
+      description: 'Specifies an error that occurred at the Transaction level.
+
+
+        An error that occurred at Transaction level results in the failure to process
+        all MerchantFundingAmount(s) for the Transaction that contained the error.
+
+
+        For each Transaction level error that occurs, the value of successfulTransactionCount
+        will be decremented by one from transactionCount.
+
+        '
+      required:
+      - errorCode
+      - errorMessage
+      properties:
+        transactionId:
+          type: string
+          description: 'If a transactionId (id) was provided in the request to specify
+            the Transaction, this field will contain the transactionId of the Transaction
+            that was provided in the request that contains the error; otherwise, no
+            value will be provided in this field.
+
+            '
+          maxLength: 32
+          pattern: ^[a-zA-Z0-9]*$
+          example: XYZ12345678901234567890123456789
+        retrievalReferenceNumber:
+          type: string
+          description: 'If a retrievalReferenceNumber was provided in the request
+            to specify the Transaction, this field will contain the retrievalReferenceNumber
+            of the Transaction that was provided in the request that contains the
+            error; otherwise, no value will be provided in this field.
+
+            '
+          maxLength: 12
+          pattern: ^[0-9]*$
+          example: ''
+        errorCode:
+          type: string
+          description: 'Specifies a client error that occurred at the Transaction
+            level.
+
+
+            **Transaction-Level Error Codes (evaluated in order):**
+
+            | Code | Condition |
+
+            |------|-----------|
+
+            | 100 | Unknown transactionId/retrievalReferenceNumber, or Transaction
+            is not approved non-PIN-debit/cardholder-debit/credit initiated by the
+            Profile |
+
+            | 101 | Debit Transaction has already been settled |
+
+            | 102 | Unknown merchantId or Merchant is no longer active |
+
+            | 103 | Duplicate merchantId(s) in MerchantFundingAmount |
+
+            | 104 | Amount is not greater than zero |
+
+            | 105 | Sum of amounts does not equal authorized/settlement amount |
+
+
+            **Note:** Error code conditions are assessed in the order listed above.
+            The errorCode returned will be that of the first condition encountered.
+
+            '
+          maxLength: 3
+          pattern: ^[0-9]+$
+          enum:
+          - '100'
+          - '101'
+          - '102'
+          - '103'
+          - '104'
+          - '105'
+          example: '100'
+        errorMessage:
+          type: string
+          description: 'A human-readable description of the corresponding errorCode.
+
+
+            **Warning:** For a given error code, there is no guarantee of what the
+            corresponding errorMessage will be. Thus, no programming decisions should
+            be made based on this value.
+
+            '
+          maxLength: 200
+          example: unknown transactionId
+      x-parameterGroups:
+      - name: Required
+        fields:
+        - errorCode
+        - errorMessage
+      - name: Recommended
+        fields:
+        - transactionId
+        - retrievalReferenceNumber
+      - name: Others
+        fields: []
+    TransactionById:
+      type: object
+      description: 'Used to specify an approved, non-PIN-debit, cardholder-debit or
+        cardholder-credit Transaction that has corresponding MerchantFundingAmount(s).
+
+
+        **Constraints:**
+
+        - A Funding Amounts Request can contain 1 to 10,000 Transaction(s)
+
+        - A Funding Amounts Request must not contain any debit Transactions that have
+        been settled
+
+        - A Funding Amounts Request that has credit transactions can contain transactions
+        that have been settled
+
+        - A Funding Amounts Request must not contain the same Transaction more than
+        once (i.e. no duplicate Transactions)
+
+        - Debit transactions can be specified by either retrievalReferenceNumber or
+        id (transactionId), but not both
+
+        - Credit transactions can only be specified by id (transactionId)
+
+
+        **Field Usage:**
+
+        - Use `id` OR `retrievalReferenceNumber`, not both
+
+        - For debit transactions: either field may be used
+
+        - For credit transactions: only `id` may be used
+
+
+
+        Use this form when specifying the Transaction by ME-generated transactionId
+        (`id`). Required for credit transactions; allowed for debit transactions.'
+      required:
+      - id
+      - merchantFundingAmounts
+      properties:
+        id:
+          type: string
+          nullable: false
+          description: 'A value generated by ME for each authorization request.
+
+
+            Also referred to as transactionId in error responses.
+
+
+            **Note:** For a debit transaction, provide either id OR retrievalReferenceNumber,
+            not both.
+
+            For a credit transaction, only id may be used.
+
+            '
+          maxLength: 32
+          pattern: ^[a-zA-Z0-9]{1,32}$
+          example: ABC12345678901234567890123456789
+        merchantFundingAmounts:
+          type: array
+          description: "Array of MerchantFundingAmount objects (1 to 10 per transaction).\n\
+            \nThe sum of all amounts must equal the transaction's authorized amount\
+            \ (if not captured) \nor settlement amount (if captured but not settled).\n"
+          minItems: 1
+          maxItems: 10
+          items:
+            $ref: '#/components/schemas/MerchantFundingAmount'
+      additionalProperties: false
+      x-parameterGroups:
+      - name: Required
+        fields:
+        - id
+        - merchantFundingAmounts
+      - name: Recommended
+        fields: []
+      - name: Others
+        fields: []
+    TransactionByRetrievalReferenceNumber:
+      type: object
+      description: 'Used to specify an approved, non-PIN-debit, cardholder-debit or
+        cardholder-credit Transaction that has corresponding MerchantFundingAmount(s).
+
+
+        **Constraints:**
+
+        - A Funding Amounts Request can contain 1 to 10,000 Transaction(s)
+
+        - A Funding Amounts Request must not contain any debit Transactions that have
+        been settled
+
+        - A Funding Amounts Request that has credit transactions can contain transactions
+        that have been settled
+
+        - A Funding Amounts Request must not contain the same Transaction more than
+        once (i.e. no duplicate Transactions)
+
+        - Debit transactions can be specified by either retrievalReferenceNumber or
+        id (transactionId), but not both
+
+        - Credit transactions can only be specified by id (transactionId)
+
+
+        **Field Usage:**
+
+        - Use `id` OR `retrievalReferenceNumber`, not both
+
+        - For debit transactions: either field may be used
+
+        - For credit transactions: only `id` may be used
+
+
+
+        Use this form when specifying a debit Transaction by retrievalReferenceNumber.
+        Not valid for credit transactions.'
+      required:
+      - retrievalReferenceNumber
+      - merchantFundingAmounts
+      properties:
+        retrievalReferenceNumber:
+          type: string
+          nullable: false
+          description: 'A value generated by ME for each new authorization request.
+
+
+            **Note:** For a debit transaction, provide either retrievalReferenceNumber
+            OR id, not both.
+
+            Cannot be used for credit transactions.
+
+            '
+          maxLength: 12
+          pattern: ^[0-9]{1,12}$
+          example: '123456789012'
+        merchantFundingAmounts:
+          type: array
+          description: "Array of MerchantFundingAmount objects (1 to 10 per transaction).\n\
+            \nThe sum of all amounts must equal the transaction's authorized amount\
+            \ (if not captured) \nor settlement amount (if captured but not settled).\n"
+          minItems: 1
+          maxItems: 10
+          items:
+            $ref: '#/components/schemas/MerchantFundingAmount'
+      additionalProperties: false
+      x-parameterGroups:
+      - name: Required
+        fields:
+        - retrievalReferenceNumber
+        - merchantFundingAmounts
+      - name: Recommended
+        fields: []
+      - name: Others
+        fields: []
+tags:
+- name: Funding Amounts
+  description: Operations for creating and modifying merchant funding amounts for
+    split settlement
+x-document-info:
+  original-document: ME_Split_Funding_API_Specification_March2024.pdf
+  publication-date: March 2024
+  version: '1.0'
+  conversion-notes: "**Issues identified and addressed in this conversion:**\n\n1.\
+    \ **Pattern corrections for nullable fields:** Changed patterns from `'^[a-zA-Z0-9]+$'`\
+    \ and \n   `'^[0-9]+$'` to `'^[a-zA-Z0-9]*$'` and `'^[0-9]*$'` for nullable string\
+    \ fields \n   (Transaction.id, Transaction.retrievalReferenceNumber, TransactionLevelError.transactionId,\n\
+    \   TransactionLevelError.retrievalReferenceNumber). This allows empty strings\
+    \ when the \n   field is not provided.\n\n2. **Server URL clarification:** Added\
+    \ notes that server URLs are assumed values since the \n   PDF only specifies\
+    \ \"[root]/funding-amounts\" without defining the actual base URL.\n   Users should\
+    \ verify with MerchantE documentation.\n\n3. **HTTP Status Code evaluation order:**\
+    \ Added explicit documentation that status codes \n   are evaluated in order (400\
+    \ → 401 → 403 → 500 → 200) per PDF Page 5.\n\n4. **Transaction-level error code\
+    \ evaluation order:** Added explicit documentation that \n   error codes are evaluated\
+    \ in order (100 → 101 → 102 → 103 → 104 → 105) per PDF Page 8.\n\n5. **Field naming\
+    \ clarification:** The PDF uses `id` in the request but `transactionId` in \n\
+    \   the response errors. Added clarifying notes to the Transaction.id field description.\n\
+    \n6. **Added additional examples:** Added example showing use of retrievalReferenceNumber\
+    \ \n   for debit transactions, and example of request-level error response.\n\n\
+    **Note on PDF sample JSON:** The sample request body in the PDF (Page 4) contains\
+    \ invalid \nJSON syntax (missing commas between array elements). The OpenAPI examples\
+    \ correct this.\n"
+  version-history:
+  - date: May 2022
+    version: '1.0'
+    changes: New document
+  - date: April 2023
+    changes: Switched to Monthly Review
+  portal-optimized:
+    date: '2026-02-26'
+    changes:
+    - Removed hard-coded /v1 from servers; use variables for host/basePath (PDF specifies
+      [root]/funding-amounts).
+    - Added x-parameterGroups (Required/Recommended/Others) for portal UX.
+    - Modeled Transaction identifier as oneOf(TransactionById | TransactionByRetrievalReferenceNumber)
+      to enforce “either/or”.
+    - Cleaned request examples to match oneOf variants (no null placeholder fields).
+    - Ensured transactionLevelErrors is always present (empty array when no errors).
+  portal-optimized-version: v1.2

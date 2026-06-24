@@ -1,0 +1,2194 @@
+openapi: 3.0.3
+info:
+  title: MerchantE Reporting API
+  description: |
+    The MerchantE platform provides a robust variety of reports to assist in reconciliation of card and ACH 
+    transactions. In addition to providing reports via the web, an API servlet is available for users that 
+    prefer to download the data into their own system in CSV format. An additional option to download data 
+    in XML format is also available.
+    
+    To initiate a request, users must provide a valid user name and password with the rights necessary to use 
+    the reporting API and access the requested report. Although several reports are available via the API, only 
+    reports enabled for that user name will be accessible.
+    
+    ## Available Reports
+    
+    | Report ID | Report Name | Description |
+    |-----------|-------------|-------------|
+    | 1 | Batch Summary | Pre-settlement card totals by date and batch |
+    | 2 | Settlement Summary | Settled transactions to merchant's bank |
+    | 3 | Deposit Summary | ACH entries to merchant's account |
+    | 5 | Chargeback Adjustments | Individual chargebacks with status |
+    | 7 | Retrieval Requests | Retrieval request tracking |
+    | 8 | Daily Interchange | Interchange qualification categories |
+    | 9 | Custom Queries | Visa/MC/Discover ARDEF tables |
+    | 10 | FX Batch Summary | International FX transactions |
+    | 12 | International Retrieval Requests | International retrieval tracking |
+    | 13 | FX Interchange Summary | FX interchange rates |
+    | 14 | International Settlement Summary | Settled international transactions |
+    | 15 | Authorization Log | Real-time authorization attempts |
+    | 21 | Payment Gateway Unsettled | Pending settlement transactions |
+    | 22 | Payment Gateway Settled | Settled gateway transactions |
+    | 23 | Payment Gateway Rejected | Declined transactions |
+    
+    ## Custom Queries
+    
+    | Query ID | Query Name | Description |
+    |----------|------------|-------------|
+    | 283 | Visa ARDEF Table | Current Visa account range definition table |
+    | 284 | MasterCard ARDEF Table | Current MasterCard account range definition table |
+    | 286 | Discover ARDEF Data | Current Discover account range definition table |
+    
+    ## Response Formats
+    
+    Reports can be returned in CSV (default) or XML format. Use the `xmlEncoding` parameter to specify XML output.
+    
+    ## Document Revisions
+    
+    - **March 2024**: Current version
+    - **April 2023**: Switched to monthly update, updated API Specification template
+    - **November 2022**: Added Digital Wallet to Settlement Detail, Batch Detail, and Authorization Log Detail reports
+    - **May 2022**: Removed Payvision reports, added KeyBank to copyright statement
+    - **December 2021**: Completed rebranding, updated for consistent formatting
+    - **July 2018**: Added Discover ARDEF custom query, updated Visa ARDEF field values
+    - **April 2018**: Updated Chargeback and retrieval reason codes with Visa VCR codes
+    
+  version: "4.3"
+  contact:
+    name: MerchantE Support
+    url: https://www.merchante.com
+  termsOfService: https://www.merchante.com/terms
+  license:
+    name: Proprietary
+    url: https://www.merchante.com/license
+  x-logo:
+    url: https://www.merchante.com/logo.png
+    altText: MerchantE Logo
+
+externalDocs:
+  description: MerchantE Payment Gateway Specification
+  url: https://www.merchante.com/docs/payment-gateway
+
+servers:
+  - url: https://test.merchante-solutions.com
+    description: Test Server
+
+tags:
+  - name: Batch Reports
+    description: Batch Summary and related reports for pre-settlement data
+  - name: Settlement Reports
+    description: Settlement Summary and related reports for settled transactions
+  - name: Deposit Reports
+    description: ACH deposit entries and summaries
+  - name: Chargeback Reports
+    description: Chargeback adjustments and tracking
+  - name: Retrieval Reports
+    description: Retrieval request tracking (domestic and international)
+  - name: Interchange Reports
+    description: Daily interchange and FX interchange summaries
+  - name: Authorization Reports
+    description: Real-time authorization log
+  - name: Payment Gateway Reports
+    description: Payment Gateway transaction reports (unsettled, settled, rejected)
+  - name: Custom Queries
+    description: ARDEF table queries for Visa, MasterCard, and Discover
+  - name: International Reports
+    description: FX and international transaction reports
+
+paths:
+  /jsp/reports/report_api.jsp:
+    post:
+      tags:
+        - Batch Reports
+        - Settlement Reports
+        - Deposit Reports
+        - Chargeback Reports
+        - Retrieval Reports
+        - Interchange Reports
+        - Authorization Reports
+        - Payment Gateway Reports
+        - Custom Queries
+        - International Reports
+      summary: Generate Report
+      description: |
+        Universal endpoint for generating all MerchantE reports. The `dsReportId` parameter determines 
+        which report type is generated. Each report type has its own required and optional parameters.
+        
+        ## Report Types by dsReportId
+        
+        - **1**: Batch Summary Report
+        - **2**: Settlement Summary Report
+        - **3**: Deposit Summary Report
+        - **5**: Chargeback Adjustments Report
+        - **7**: Retrieval Requests Report
+        - **8**: Daily Interchange Summary Report
+        - **9**: Custom Queries (requires queryId)
+        - **10**: FX Batch Summary Report
+        - **11**: International Chargebacks Report
+        - **12**: International Retrieval Requests Report
+        - **13**: FX Interchange Summary Report
+        - **14**: International Settlement Summary Report
+        - **15**: Authorization Log Report
+        - **21**: Payment Gateway Unsettled Transactions Report
+        - **22**: Payment Gateway Settled Transactions Report
+        - **23**: Payment Gateway Rejected Transactions Report
+        
+        ## Report Versions
+        
+        Most reports support two versions:
+        - **Summary (reportType=0)**: Aggregated totals by card type
+        - **Detail (reportType=1)**: Transaction-level data
+        
+      operationId: generateReport
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/ReportRequest'
+            examples:
+              batchSummaryDetail:
+                summary: Batch Summary Report - Detail Version
+                value:
+                  userId: "aaaaaaa"
+                  userPass: "xxxxxx"
+                  dsReportId: 1
+                  reportDateBegin: "04/06/2012"
+                  reportDateEnd: "04/09/2012"
+                  nodeId: "941000123456"
+                  reportType: 1
+                  includeTridentTranId: true
+                  includePurchaseId: true
+              settlementSummary:
+                summary: Settlement Summary Report - Summary Version
+                value:
+                  userId: "aaaaaaa"
+                  userPass: "xxxxxx"
+                  dsReportId: 2
+                  reportDateBegin: "04/04/2012"
+                  reportDateEnd: "04/13/2012"
+                  nodeId: "941000123456"
+                  reportType: 0
+              chargebackAdjustments:
+                summary: Chargeback Adjustments Report
+                value:
+                  userId: "aaaaaaa"
+                  userPass: "xxxxxx"
+                  dsReportId: 5
+                  reportDateBegin: "04/09/2012"
+                  reportDateEnd: "04/09/2012"
+                  nodeId: "941000123456"
+                  reportType: 1
+                  includeTridentTranId: true
+                  includePurchaseId: true
+              visaArdef:
+                summary: Visa ARDEF Custom Query
+                value:
+                  userId: "aaaaaaa"
+                  userPass: "xxxxxx"
+                  dsReportId: 9
+                  queryId: 283
+                  reportDateBegin: "04/22/2012"
+                  reportDateEnd: "04/23/2012"
+                  reportType: 0
+              paymentGatewayUnsettled:
+                summary: Payment Gateway Unsettled Report
+                value:
+                  userId: "aaaaaa"
+                  userPass: "xxxxxx"
+                  dsReportId: 21
+                  profileId: "9410000xxxxx00000001"
+                  searchValue: "1234"
+                  searchCriteria: "CN"
+              paymentGatewaySettled:
+                summary: Payment Gateway Settled Report
+                value:
+                  userId: "aaaaaa"
+                  userPass: "xxxxxx"
+                  dsReportId: 22
+                  profileId: "9410000xxxxx00000001"
+                  batchDateFrom: "10/03/2013"
+                  batchDateTo: "10/03/2013"
+              authorizationLog:
+                summary: Authorization Log Report
+                value:
+                  userId: "aaaaaaa"
+                  userPass: "xxxxxx"
+                  dsReportId: 15
+                  reportDateBegin: "02/28/2012"
+                  reportDateEnd: "02/28/2012"
+                  nodeId: "941000123456"
+                  reportType: 1
+                  includeTridentTranId: true
+                  includePurchaseId: true
+      responses:
+        '200':
+          description: Successful report generation
+          content:
+            text/csv:
+              schema:
+                type: string
+                description: CSV formatted report data with header row
+              examples:
+                batchSummaryDetail:
+                  summary: Batch Summary Detail Response
+                  value: |
+                    "Merchant Id","DBA Name","Term Num","Batch Num","Batch Date","Tran Date","Card Type","Card Number","Reference","Purchase Id","Client Reference","Auth Code","Entry Mode","Tran Amount","Digital Wallet"
+                    941000060005,"PAUL'S TEST ACCOUNT","1",765,05/03/2023,04/20/2023,"AM","341111xxxxxx1000","'3891738407","3891738407","","000000","KEYED",56.0,"APPLE"
+                settlementSummary:
+                  summary: Settlement Summary Response
+                  value: |
+                    "Org Id","Org Name","Card Type","Sales Cnt","Sales Amt","Credits Cnt","Credits Amt","Net Amt"
+                    941000123456,"YOURSTORENAME",Visa,144,35635.94,22,-8004.35,27631.589999999997
+                chargebackAdjustments:
+                  summary: Chargeback Adjustments Response
+                  value: |
+                    "Merchant Id","DBA Name","Control Number","VCR Workflow","Incoming Date","Card Number","Reference Number","Tran Date","Tran Amount","Trident Tran ID","Purchase ID","Client Ref Num","Auth Code","Adj Date","Adj Ref Num","Reason","First Time","Reason Code","CB Ref Num","Terminal ID"
+                    941000123456,"YOURSTORENAME",2811904,"Collaboration",04/08/2012,401234xxxxxx7806,'24436542026000728820478,01/25/2012,299.95,qwertyuiop12345da8dcf4180084fe42,72880690,"72880690:0:01-25-2012--03:48:24",0000,"04/10/2012-","00072882047","Fraudulent Transaction - Card Absent Environment",Y,83,97352,"94100012345600000001"
+            application/xml:
+              schema:
+                type: string
+                description: XML formatted report data (when xmlEncoding is specified)
+              examples:
+                xmlEncodingStyle0:
+                  summary: XML Encoding Style 0
+                  value: |
+                    <ReportRow>
+                      <ReportColumn name="CardNumber" value="434257xxxxxx9403"/>
+                      <ReportColumn name="TranAmount" value="100.00"/>
+                    </ReportRow>
+                xmlEncodingStyle1:
+                  summary: XML Encoding Style 1
+                  value: |
+                    <ReportRow>
+                      <CardNumber>434257xxxxxx9403</CardNumber>
+                      <TranAmount>100.00</TranAmount>
+                    </ReportRow>
+        '400':
+          description: Bad Request - Invalid parameters
+          content:
+            text/plain:
+              schema:
+                type: string
+              example: "Invalid report parameters"
+        '401':
+          description: Unauthorized - Invalid credentials
+          content:
+            text/plain:
+              schema:
+                type: string
+              example: "Authentication failed"
+        '403':
+          description: Forbidden - User does not have access to requested report
+          content:
+            text/plain:
+              schema:
+                type: string
+              example: "Access denied to requested report"
+
+components:
+  schemas:
+    ReportRequest:
+      type: object
+      required:
+        - userId
+        - userPass
+        - dsReportId
+      properties:
+        userId:
+          type: string
+          maxLength: 75
+          description: User Login ID for the ME web reporting system
+          example: "aaaaaaa"
+        userPass:
+          type: string
+          maxLength: 30
+          format: password
+          description: User Login Password for the ME web reporting system
+          example: "xxxxxx"
+        dsReportId:
+          $ref: '#/components/schemas/ReportIdEnum'
+        beginDate.month:
+          $ref: '#/components/schemas/MonthEnum'
+        beginDate.day:
+          type: integer
+          minimum: 1
+          maximum: 31
+          description: Begin date day of month for web report
+          example: 6
+        beginDate.year:
+          type: integer
+          minimum: 2000
+          maximum: 2099
+          description: Begin date year for web report
+          example: 2012
+        endDate.month:
+          $ref: '#/components/schemas/MonthEnum'
+        endDate.day:
+          type: integer
+          minimum: 1
+          maximum: 31
+          description: End date day of month for web report
+          example: 9
+        endDate.year:
+          type: integer
+          minimum: 2000
+          maximum: 2099
+          description: End date year for web report
+          example: 2012
+        reportDateBegin:
+          type: string
+          pattern: '^\d{2}/\d{2}/\d{4}$'
+          maxLength: 10
+          description: Begin date for the web report. Format should be mm/dd/yyyy.
+          example: "04/06/2012"
+        reportDateEnd:
+          type: string
+          pattern: '^\d{2}/\d{2}/\d{4}$'
+          maxLength: 10
+          description: End date for the web report. Format should be mm/dd/yyyy.
+          example: "04/09/2012"
+        nodeId:
+          type: string
+          maxLength: 16
+          pattern: '^\d{12,16}$'
+          description: Specific hierarchy node (e.g., merchant account number)
+          example: "941000123456"
+        reportType:
+          type: integer
+          enum: [0, 1]
+          default: 0
+          description: |
+            Report type version:
+            - 0: Summary version (aggregated totals)
+            - 1: Detail version (transaction-level data)
+          example: 1
+        encoding:
+          type: integer
+          enum: [0, 1]
+          default: 0
+          description: |
+            Download encoding format:
+            - 0: CSV (default)
+            - 1: Fixed width
+          example: 0
+        includeTridentTranId:
+          type: boolean
+          description: |
+            Allows clients using the API to receive the transaction id in the download file. 
+            If the Client ID is submitted using the ME Payment Gateway, the client ID will 
+            also be provided in the Batch and Settlement Reports.
+          example: true
+        includePurchaseId:
+          type: boolean
+          description: Allows clients using the API to receive the purchase id in the report.
+          example: true
+        includeClientRefNum:
+          type: boolean
+          description: Allows clients to receive the client reference number in the report.
+          example: true
+        queryId:
+          $ref: '#/components/schemas/QueryIdEnum'
+          description: |
+            Only used with Report ID 9. Used to select a predefined custom query.
+            Max length: 6 characters.
+        xmlEncoding:
+          type: integer
+          enum: [0, 1]
+          description: |
+            Send if report should be delivered in XML format:
+            - 0: XML style with name/value attributes
+            - 1: XML style with element names
+          example: 0
+        profileId:
+          type: string
+          maxLength: 20
+          description: Profile ID / Terminal ID for Payment Gateway reports
+          example: "9410000xxxxx00000001"
+        batchDateFrom:
+          type: string
+          pattern: '^\d{2}/\d{2}/\d{4}$'
+          maxLength: 10
+          description: Batch date range start for Payment Gateway Settled/Rejected reports
+          example: "10/03/2013"
+        batchDateTo:
+          type: string
+          pattern: '^\d{2}/\d{2}/\d{4}$'
+          maxLength: 10
+          description: Batch date range end for Payment Gateway Settled/Rejected reports
+          example: "10/03/2013"
+        fromDate:
+          type: string
+          pattern: '^\d{2}/\d{2}/\d{4}$'
+          maxLength: 10
+          description: Date range start for Payment Gateway Rejected report
+          example: "10/02/2013"
+        toDate:
+          type: string
+          pattern: '^\d{2}/\d{2}/\d{4}$'
+          maxLength: 10
+          description: Date range end for Payment Gateway Rejected report
+          example: "10/03/2013"
+        searchCriteria:
+          type: string
+          enum: ["CN", "IN", "TA"]
+          description: |
+            Search criteria type for Payment Gateway Unsettled report:
+            - CN: Card number
+            - IN: Invoice
+            - TA: Transaction Amount
+          example: "CN"
+        searchValue:
+          type: string
+          description: Search value corresponding to searchCriteria
+          example: "1234"
+      x-parameterGroups:
+        - name: Required
+          fields:
+            - userId
+            - userPass
+            - dsReportId
+            - reportDateBegin
+            - reportDateEnd
+            - nodeId
+          description: Date range and node ID required for most reports. Payment Gateway reports (21-23) use profileId instead of nodeId.
+        - name: Recommended
+          fields:
+            - reportType
+            - profileId
+            - queryId
+            - xmlEncoding
+          description: reportType=1 for transaction-level details; profileId for Payment Gateway reports; queryId for custom queries; xmlEncoding for XML format
+        - name: Others
+          fields:
+            - searchCriteria
+            - searchValue
+            - encoding
+            - includeTridentTranId
+            - includePurchaseId
+            - includeClientRefNum
+            - batchDateFrom
+            - batchDateTo
+            - fromDate
+            - toDate
+          description: Optional search and date filter fields for specific report types
+
+    ReportIdEnum:
+      type: integer
+      enum: [1, 2, 3, 5, 7, 8, 9, 10, 11, 12, 13, 14, 15, 21, 22, 23]
+      description: |
+        ID of the report the client is requesting:
+        - 1: Batch Summary
+        - 2: Settlement Summary
+        - 3: Deposit Summary
+        - 5: Chargeback Adjustments
+        - 7: Retrieval Requests
+        - 8: Daily Interchange
+        - 9: Custom Queries
+        - 10: FX Batch Summary
+        - 11: International Chargebacks
+        - 12: International Retrieval Requests
+        - 13: FX Interchange Summary
+        - 14: International Settlement Summary
+        - 15: Authorization Log
+        - 21: Unsettled Payment Gateway
+        - 22: Settled Payment Gateway
+        - 23: Rejected Payment Gateway
+      example: 1
+
+    MonthEnum:
+      type: integer
+      enum: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]
+      description: |
+        Month value (0-indexed):
+        - 0: January
+        - 1: February
+        - 2: March
+        - 3: April
+        - 4: May
+        - 5: June
+        - 6: July
+        - 7: August
+        - 8: September
+        - 9: October
+        - 10: November
+        - 11: December
+      example: 3
+
+    QueryIdEnum:
+      type: integer
+      enum: [283, 284, 286]
+      description: |
+        Custom Query ID (only used with dsReportId=9):
+        - 283: Visa ARDEF Table
+        - 284: MasterCard ARDEF Table
+        - 286: Discover ARDEF Data
+      example: 283
+
+    # =========================================================================
+    # BATCH SUMMARY REPORT SCHEMAS
+    # =========================================================================
+    
+    BatchSummarySummaryResponse:
+      type: object
+      description: Batch Summary Report - Summary Version response fields
+      properties:
+        orgId:
+          type: string
+          maxLength: 12
+          description: Merchant Number
+          example: "941000123456"
+        orgName:
+          type: string
+          maxLength: 25
+          description: Business DBA
+          example: "YOURSTORENAME"
+        cardType:
+          type: string
+          maxLength: 50
+          description: Brand of Card
+          example: "Visa"
+        salesCnt:
+          type: integer
+          maxLength: 12
+          description: Number of Sale Transactions
+          example: 144
+        salesAmt:
+          type: number
+          format: double
+          maxLength: 12
+          description: Dollar amount of Sale Transactions
+          example: 35635.94
+        creditsCnt:
+          type: integer
+          maxLength: 12
+          description: Number of Credit Transactions
+          example: 22
+        creditsAmt:
+          type: number
+          format: double
+          maxLength: 12
+          description: Dollar amount of Credit Transactions
+          example: -8004.35
+        netAmt:
+          type: number
+          format: double
+          maxLength: 12
+          description: Net Amount (Sales Amt - Credits Amt)
+          example: 27631.59
+
+    BatchSummaryDetailResponse:
+      type: object
+      description: Batch Summary Report - Detail Version response fields
+      properties:
+        merchantId:
+          type: string
+          maxLength: 12
+          description: Merchant Number
+          example: "941000060005"
+        dbaName:
+          type: string
+          maxLength: 25
+          description: Business DBA
+          example: "PAUL'S TEST ACCOUNT"
+        termNum:
+          type: string
+          maxLength: 8
+          description: Constant assigned by ME
+          example: "1"
+        batchNum:
+          type: integer
+          maxLength: 3
+          description: Batch Number
+          example: 765
+        batchDate:
+          type: string
+          format: date
+          description: Batch Settlement Date (MM/DD/YYYY)
+          example: "05/03/2023"
+        tranDate:
+          type: string
+          format: date
+          description: Transaction Date (MM/DD/YYYY)
+          example: "04/20/2023"
+        cardType:
+          type: string
+          maxLength: 2
+          description: Brand of Card code
+          example: "AM"
+        cardNumber:
+          type: string
+          maxLength: 16
+          description: Truncated Card Number
+          example: "341111xxxxxx1000"
+        reference:
+          type: string
+          maxLength: 23
+          description: ARN (Acquirer Reference Number)
+          example: "'3891738407"
+        purchaseId:
+          type: string
+          maxLength: 17
+          description: Invoice Number
+          example: "3891738407"
+        clientReference:
+          type: string
+          maxLength: 96
+          description: Client Reference Number
+          example: ""
+        authCode:
+          type: string
+          maxLength: 6
+          description: Authorization Number
+          example: "000000"
+        entryMode:
+          type: string
+          maxLength: 50
+          description: Method of Card Number Entry
+          example: "KEYED"
+        tranAmount:
+          type: number
+          format: double
+          maxLength: 12
+          description: Transaction Amount
+          example: 56.0
+        digitalWallet:
+          type: string
+          description: Type of Digital Wallet (added November 2022)
+          enum: ["APPLE", "GOOGLE", ""]
+          example: "APPLE"
+
+    # =========================================================================
+    # SETTLEMENT SUMMARY REPORT SCHEMAS
+    # =========================================================================
+
+    SettlementSummarySummaryResponse:
+      type: object
+      description: Settlement Summary Report - Summary Version response fields
+      properties:
+        orgId:
+          type: string
+          maxLength: 12
+          description: Merchant Number
+          example: "941000123456"
+        orgName:
+          type: string
+          maxLength: 25
+          description: Business DBA
+          example: "YOURSTORENAME"
+        cardType:
+          type: string
+          maxLength: 50
+          description: Brand of Card
+          example: "Visa"
+        salesCnt:
+          type: integer
+          maxLength: 12
+          description: Number of Sale Transactions
+          example: 144
+        salesAmt:
+          type: number
+          format: double
+          maxLength: 12
+          description: Dollar Amount of Sale Transactions
+          example: 35635.94
+        creditsCnt:
+          type: integer
+          maxLength: 12
+          description: Number of Credit Transactions
+          example: 22
+        creditsAmt:
+          type: number
+          format: double
+          maxLength: 12
+          description: Dollar Amount of Credit Transactions
+          example: -8004.35
+        netAmt:
+          type: number
+          format: double
+          maxLength: 12
+          description: Net Amount (Sales Amt - Credit Amt)
+          example: 27631.59
+
+    SettlementSummaryDetailResponse:
+      type: object
+      description: Settlement Summary Report - Detail Version response fields
+      properties:
+        merchantId:
+          type: string
+          maxLength: 12
+          description: Merchant Number
+          example: "941000123456"
+        dbaName:
+          type: string
+          maxLength: 25
+          description: Business DBA
+          example: "YOURSTORENAME"
+        termNum:
+          type: string
+          maxLength: 8
+          description: Constant assigned by ME
+          example: "1"
+        batchNum:
+          type: integer
+          maxLength: 3
+          description: Batch Number
+          example: 216
+        batchDate:
+          type: string
+          format: date
+          description: Batch Settlement Date (MM/DD/YYYY)
+          example: "04/04/2012"
+        tranDate:
+          type: string
+          format: date
+          description: Transaction Date (MM/DD/YYYY)
+          example: "04/04/2012"
+        cardType:
+          type: string
+          maxLength: 2
+          description: Brand of Card code
+          example: "DS"
+        cardNumber:
+          type: string
+          maxLength: 16
+          description: Truncated Card Number
+          example: "352853xxxxxx1234"
+        reference:
+          type: string
+          maxLength: 23
+          description: ARN (Acquirer Reference Number)
+          example: "'2347168185"
+        purchaseId:
+          type: string
+          maxLength: 17
+          description: Invoice Number
+          example: "ABCDEF9737619"
+        authCode:
+          type: string
+          maxLength: 6
+          description: Authorization Number
+          example: "000844"
+        entryMode:
+          type: string
+          maxLength: 50
+          description: Method of Card Number Entry
+          example: "KEYED"
+        tranAmount:
+          type: number
+          format: double
+          maxLength: 12
+          description: Transaction Amount
+          example: 0.99
+        currencyCode:
+          type: string
+          maxLength: 3
+          description: |
+            Funded Currency (Only present when Multi-Currency is enabled).
+            3-digit numeric ISO currency code.
+          example: "840"
+        originalAmount:
+          type: number
+          format: double
+          description: Original amount of authorization (Only present when Multi-Currency is enabled)
+          example: 0.50
+        originalCurrencyCode:
+          type: string
+          maxLength: 3
+          description: |
+            Currency code that was authorized and cleared to cardholder 
+            (Only present when Multi-Currency is enabled). 3-digit numeric ISO currency code.
+          example: "840"
+        tridentTranId:
+          type: string
+          maxLength: 32
+          description: Trident Transaction ID
+          example: "e090c187970dxxxxxxxxx4902e41800"
+        clientRefNum:
+          type: string
+          maxLength: 96
+          description: Client Reference Number
+          example: "2346317925"
+        digitalWallet:
+          type: string
+          description: Type of Digital Wallet (added November 2022)
+          enum: ["APPLE", "GOOGLE", ""]
+          example: ""
+
+    # =========================================================================
+    # DEPOSIT SUMMARY REPORT SCHEMAS
+    # =========================================================================
+
+    DepositSummaryDetailResponse:
+      type: object
+      description: Deposit Summary Report - Detail Version response fields
+      properties:
+        orgId:
+          type: string
+          maxLength: 12
+          description: Merchant Number
+          example: "941000123456"
+        orgName:
+          type: string
+          maxLength: 25
+          description: Business DBA
+          example: "YourStoreName"
+        date:
+          type: string
+          format: date
+          description: Date of ACH Transaction (MM/DD/YYYY)
+          example: "04/04/2012"
+        type:
+          type: string
+          maxLength: 10
+          enum: ["CREDIT", "DEBIT"]
+          description: Type of ACH Transaction
+          example: "CREDIT"
+        amount:
+          type: number
+          format: double
+          maxLength: 12
+          description: Amount of ACH Transaction
+          example: 4239.21
+        reference:
+          type: string
+          maxLength: 15
+          description: ACH Reference Number
+          example: "'121123456789012"
+
+    # =========================================================================
+    # CHARGEBACK ADJUSTMENTS REPORT SCHEMAS
+    # =========================================================================
+
+    ChargebackAdjustmentsDetailResponse:
+      type: object
+      description: Chargeback Adjustments Report - Detail Version response fields
+      properties:
+        merchantId:
+          type: string
+          maxLength: 12
+          description: Merchant Number
+          example: "941000123456"
+        dbaName:
+          type: string
+          maxLength: 25
+          description: Business DBA
+          example: "YOURSTORENAME"
+        controlNumber:
+          type: string
+          maxLength: 7
+          description: ME Internal Tracking Number
+          example: "2811904"
+        vcrWorkflow:
+          type: string
+          maxLength: 13
+          description: Visa Chargeback Workflow (Collaboration/Allocation)
+          enum: ["Collaboration", "Allocation", ""]
+          example: "Collaboration"
+        incomingDate:
+          type: string
+          format: date
+          description: Date of the Chargeback (MM/DD/YYYY)
+          example: "04/08/2012"
+        cardNumber:
+          type: string
+          maxLength: 16
+          description: Truncated Card Number
+          example: "401234xxxxxx7806"
+        referenceNumber:
+          type: string
+          maxLength: 23
+          description: ARN - 23-digit reference number used when transaction is processed to issuing bank
+          example: "'24436542026000728820478"
+        tranDate:
+          type: string
+          format: date
+          description: Date of the Transaction (MM/DD/YYYY)
+          example: "01/25/2012"
+        tranAmount:
+          type: number
+          format: double
+          maxLength: 12
+          description: Transaction Amount
+          example: 299.95
+        tridentTranId:
+          type: string
+          maxLength: 32
+          description: Trident Transaction ID
+          example: "qwertyuiop12345da8dcf4180084fe42"
+        purchaseId:
+          type: string
+          maxLength: 17
+          description: Invoice Number
+          example: "72880690"
+        clientRefNum:
+          type: string
+          maxLength: 96
+          description: Client Reference Number
+          example: "72880690:0:01-25-2012--03:48:24"
+        authCode:
+          type: string
+          maxLength: 6
+          description: Authorization Number
+          example: "0000"
+        adjDate:
+          type: string
+          format: date
+          description: Date of the Adjustment (MM/DD/YYYY)
+          example: "04/10/2012"
+        adjRefNum:
+          type: string
+          maxLength: 11
+          description: Internal Tracking Number
+          example: "00072882047"
+        reason:
+          type: string
+          maxLength: 60
+          description: Text explaining reason for chargeback
+          example: "Fraudulent Transaction - Card Absent Environment"
+        firstTime:
+          type: string
+          maxLength: 1
+          enum: ["Y", "N"]
+          description: Is this a first time Chargeback
+          example: "Y"
+        reasonCode:
+          type: string
+          maxLength: 4
+          description: Numeric code for chargeback type
+          example: "83"
+        cbRefNum:
+          type: string
+          maxLength: 10
+          description: Internal Tracking Number
+          example: "97352"
+        terminalId:
+          type: string
+          maxLength: 20
+          description: The Profile ID
+          example: "94100012345600000001"
+
+    # =========================================================================
+    # RETRIEVAL REQUEST REPORT SCHEMAS
+    # =========================================================================
+
+    RetrievalRequestDetailResponse:
+      type: object
+      description: Retrieval Request Report - Detail Version response fields
+      properties:
+        merchantId:
+          type: string
+          maxLength: 12
+          description: Merchant Number
+          example: "941000123456"
+        dbaName:
+          type: string
+          maxLength: 25
+          description: Business DBA
+          example: "YourStoreName"
+        controlNumber:
+          type: string
+          maxLength: 7
+          description: Internal Tracking Number
+          example: "2815962"
+        incomingDate:
+          type: string
+          format: date
+          description: Date of the Retrieval (MM/DD/YYYY)
+          example: "04/13/2012"
+        cardNumber:
+          type: string
+          maxLength: 16
+          description: Truncated Card Number
+          example: "601100xxxxxx5317"
+        referenceNumber:
+          type: string
+          maxLength: 8
+          description: Internal Tracking Number
+          example: "'72835320"
+        tranDate:
+          type: string
+          format: date
+          description: Transaction Date (MM/DD/YYYY)
+          example: "01/17/2012"
+        tranAmount:
+          type: number
+          format: double
+          maxLength: 12
+          description: Transaction Amount
+          example: 129.95
+        dueDate:
+          type: string
+          format: date
+          description: Last Day to Respond to ME (MM/DD/YYYY)
+          example: "04/27/2012"
+        reasonCode:
+          type: string
+          maxLength: 4
+          description: Reason for the Retrieval Request
+          example: "RN2"
+        retrievalRefNum:
+          type: string
+          maxLength: 10
+          description: Retrieval Reference Number
+          example: "3833638576"
+
+    # =========================================================================
+    # DAILY INTERCHANGE SUMMARY REPORT SCHEMAS
+    # =========================================================================
+
+    DailyInterchangeDetailResponse:
+      type: object
+      description: Daily Interchange Summary Report - Detail Version response fields
+      properties:
+        orgId:
+          type: string
+          maxLength: 12
+          description: Merchant Number
+          example: "941000123456"
+        orgName:
+          type: string
+          maxLength: 25
+          description: Business DBA
+          example: "YourStoreName"
+        batchDate:
+          type: string
+          format: date
+          description: Batch Settlement Date (MM/DD/YYYY)
+          example: "04/09/2012"
+        tranDate:
+          type: string
+          format: date
+          description: Transaction Date (MM/DD/YYYY)
+          example: "04/08/2012"
+        ct:
+          type: string
+          maxLength: 2
+          description: Type of Card (card type code)
+          example: "DS"
+        cat:
+          type: string
+          maxLength: 4
+          description: Interchange level at which the transaction was processed - Numeric version
+          example: "9125"
+        catDesc:
+          type: string
+          maxLength: 60
+          description: Text Description of the Interchange level at which the transaction was processed
+          example: "Commercial - MSL / Electronic"
+        rate:
+          type: number
+          format: double
+          maxLength: 20
+          description: Discount Rate for that Interchange level
+          example: 2.3
+        perItem:
+          type: number
+          format: double
+          maxLength: 20
+          description: Per Item fee for that Interchange level
+          example: 0.1
+        cardNumber:
+          type: string
+          maxLength: 16
+          description: Truncated Card Number
+          example: "601149xxxxxx1234"
+        tranAmount:
+          type: number
+          format: double
+          maxLength: 12
+          description: Transaction Amount
+          example: 399.95
+        authCode:
+          type: string
+          maxLength: 6
+          description: Authorization Number
+          example: "00825B"
+        entryMode:
+          type: string
+          maxLength: 20
+          description: Method of Card Number Entry
+          example: "KEYED"
+        purchaseId:
+          type: string
+          maxLength: 17
+          description: Invoice Number
+          example: "73374264"
+        reference:
+          type: string
+          maxLength: 8
+          description: Internal tracking Number
+          example: "'73375647"
+        icDue:
+          type: number
+          format: double
+          maxLength: 12
+          description: Total Interchange Amount
+          example: 9.29885
+
+    # =========================================================================
+    # FX BATCH SUMMARY REPORT SCHEMAS
+    # =========================================================================
+
+    FxBatchSummaryDetailResponse:
+      type: object
+      description: FX Batch Summary Report - Detail Version response fields
+      properties:
+        merchantId:
+          type: string
+          maxLength: 12
+          description: Merchant Number
+          example: "941000123456"
+        dbaName:
+          type: string
+          maxLength: 25
+          description: Business DBA
+          example: "YourStoreName"
+        termNum:
+          type: string
+          maxLength: 8
+          description: Constant assigned by ME
+          example: "1"
+        batchNumber:
+          type: integer
+          maxLength: 8
+          description: Batch Number
+          example: 20120101
+        batchDate:
+          type: string
+          format: date
+          description: Batch Settlement Date (MM/DD/YYYY)
+          example: "01/01/2012"
+        tranDate:
+          type: string
+          format: date
+          description: Transaction Date (MM/DD/YYYY)
+          example: "01/01/2012"
+        cardType:
+          type: string
+          maxLength: 4
+          description: Brand of Card
+          example: "VS"
+        cardNumber:
+          type: string
+          maxLength: 16
+          description: Truncated Card Number
+          example: "401234xxxxxx1234"
+        referenceNumber:
+          type: string
+          maxLength: 10
+          description: Internal Tracking Number
+          example: "'4602428770"
+        purchaseId:
+          type: string
+          maxLength: 17
+          description: Invoice Number
+          example: "4602428791"
+        tridentTranId:
+          type: string
+          maxLength: 32
+          description: Trident Transaction ID
+          example: "1234567890asdfghjklpe5c373131e71"
+        clientReference:
+          type: string
+          maxLength: 96
+          description: Client Reference Number
+          example: "393500"
+        authCode:
+          type: string
+          maxLength: 6
+          description: Authorization Number
+          example: ""
+        entryMode:
+          type: string
+          maxLength: 50
+          description: Method of Card Number Entry
+          example: "KEYED"
+        debitCreditInd:
+          type: string
+          maxLength: 1
+          enum: ["D", "C"]
+          description: Debit or Credit Indicator
+          example: "D"
+        currencyCode:
+          type: string
+          maxLength: 3
+          description: Native Currency Code (ISO 4217 alpha code)
+          example: "ARS"
+        amount:
+          type: number
+          format: double
+          maxLength: 12
+          description: Native Currency Amount
+          example: 347.89
+        amountUsd:
+          type: number
+          format: double
+          maxLength: 12
+          description: USD Amount
+          example: 77.42
+
+    # =========================================================================
+    # INTERNATIONAL RETRIEVAL REQUESTS REPORT SCHEMAS
+    # =========================================================================
+
+    InternationalRetrievalRequestDetailResponse:
+      type: object
+      description: International Retrieval Request Report - Detail Version response fields
+      properties:
+        merchantId:
+          type: string
+          maxLength: 12
+          description: Merchant Number
+          example: "941000123456"
+        dbaName:
+          type: string
+          maxLength: 25
+          description: Business DBA
+          example: "YourStoreName"
+        caseNumber:
+          type: string
+          maxLength: 12
+          description: Internal Tracking Number
+          example: "040212713547"
+        incomingDate:
+          type: string
+          format: date
+          description: Date of the Retrieval (MM/DD/YYYY)
+          example: "02/05/2012"
+        cardNumber:
+          type: string
+          maxLength: 16
+          description: Truncated Card Number
+          example: "401234xxxxxx1234"
+        referenceNumber:
+          type: string
+          maxLength: 10
+          description: ARN - 23-digit reference number used when transaction is processed to issuing bank
+          example: "4593872049"
+        tridentTranId:
+          type: string
+          maxLength: 32
+          description: Trident Transaction ID
+          example: "24d961234567890asdfghjklpe954508"
+        tranDate:
+          type: string
+          format: date
+          description: Transaction Date (MM/DD/YYYY)
+          example: "12/19/2011"
+        currencyCode:
+          type: string
+          maxLength: 3
+          description: Native Currency Code (ISO 4217 alpha code)
+          example: "ARS"
+        tranAmount:
+          type: string
+          maxLength: 25
+          description: Original Currency Amount, USD Amount (comma-separated)
+          example: "1329.53,298.08"
+        reasonCode:
+          type: string
+          maxLength: 4
+          description: Numeric code for retrieval type
+          example: "83"
+        reason:
+          type: string
+          maxLength: 60
+          description: Text explaining reason for retrieval
+          example: ""
+        type:
+          type: string
+          maxLength: 50
+          description: Type of Retrieval
+          example: "Request for Photocopy"
+        adjustmentDate:
+          type: string
+          format: date
+          description: Date the Adjustment was made to the Merchant's Account (MM/DD/YYYY)
+          example: ""
+
+    # =========================================================================
+    # FX INTERCHANGE SUMMARY REPORT SCHEMAS
+    # =========================================================================
+
+    FxInterchangeSummaryDetailResponse:
+      type: object
+      description: FX Interchange Summary Report - Detail Version response fields
+      properties:
+        merchantId:
+          type: string
+          maxLength: 12
+          description: Merchant Number
+          example: "941000086319"
+        dbaName:
+          type: string
+          maxLength: 25
+          description: Business DBA
+          example: "2CHECKOUT.COM, INC.2"
+        batchDate:
+          type: string
+          format: date
+          description: Batch Settlement Date (MM/DD/YYYY)
+          example: "02/28/2012"
+        tranDate:
+          type: string
+          format: date
+          description: Transaction Date (MM/DD/YYYY)
+          example: "02/24/2012"
+        cardType:
+          type: string
+          maxLength: 4
+          description: Brand of Card
+          example: "Visa"
+        cardNumber:
+          type: string
+          maxLength: 16
+          description: Truncated Card Number
+          example: "401234xxxxxx1234"
+        referenceNumber:
+          type: string
+          maxLength: 10
+          description: Internal Tracking Number
+          example: "'4641783816"
+        purchaseId:
+          type: string
+          maxLength: 17
+          description: Invoice Number
+          example: "4641784008"
+        tridentTranId:
+          type: string
+          maxLength: 32
+          description: Trident Transaction ID
+          example: "f8c5d6ba0d0c3555898593d618cee6d8"
+        clientReference:
+          type: string
+          maxLength: 96
+          description: Client Reference Number
+          example: "1641210"
+        authCode:
+          type: string
+          maxLength: 6
+          description: Authorization Number
+          example: ""
+        entryMode:
+          type: string
+          maxLength: 50
+          description: Method of Card Number Entry
+          example: "KEYED"
+        debitCreditInd:
+          type: string
+          maxLength: 1
+          enum: ["D", "C"]
+          description: Debit or Credit Indicator
+          example: "D"
+        currencyCode:
+          type: string
+          maxLength: 4
+          description: Native Currency Code (ISO 4217 alpha code)
+          example: "ARS"
+        tranAmount:
+          type: number
+          format: double
+          maxLength: 12
+          description: Native Currency Amount
+          example: 57.61
+        tranAmountUsd:
+          type: number
+          format: double
+          maxLength: 12
+          description: USD Amount
+          example: 12.69
+        icDue:
+          type: number
+          format: double
+          maxLength: 12
+          description: Total Interchange amount
+          example: 0.17
+
+    # =========================================================================
+    # INTERNATIONAL SETTLEMENT SUMMARY REPORT SCHEMAS
+    # =========================================================================
+
+    InternationalSettlementSummaryDetailResponse:
+      type: object
+      description: International Settlement Summary Report - Detail Version response fields
+      properties:
+        merchantId:
+          type: string
+          maxLength: 12
+          description: Merchant Number
+          example: "941000123456"
+        dbaName:
+          type: string
+          maxLength: 25
+          description: Merchant DBA
+          example: "YourStoreName"
+        batchDate:
+          type: string
+          format: date
+          description: Batch Settlement Date (MM/DD/YYYY)
+          example: "02/28/2012"
+        tranDate:
+          type: string
+          format: date
+          description: Transaction Date (MM/DD/YYYY)
+          example: "02/24/2012"
+        cardType:
+          type: string
+          maxLength: 50
+          description: Brand of Card
+          example: "Visa"
+        cardNumber:
+          type: string
+          maxLength: 16
+          description: Truncated Card Number
+          example: "404567xxxxxx1234"
+        referenceNumber:
+          type: string
+          maxLength: 10
+          description: ARN - 23-digit reference number used when transaction is processed to issuing bank
+          example: "'4641783816"
+        purchaseId:
+          type: string
+          maxLength: 17
+          description: Invoice Number
+          example: "4641784008"
+        tridentTranId:
+          type: string
+          maxLength: 32
+          description: Trident Transaction ID
+          example: "1234567890asdfghjklp93d618cee6d8"
+        clientReference:
+          type: string
+          maxLength: 96
+          description: Client Reference Number
+          example: "1641210"
+        authCode:
+          type: string
+          maxLength: 6
+          description: Authorization Number
+          example: ""
+        entryMode:
+          type: string
+          maxLength: 50
+          description: Method of Card Number Entry
+          example: "KEYED"
+        debitCreditInd:
+          type: string
+          maxLength: 1
+          enum: ["D", "C"]
+          description: Debit or Credit Indicator
+          example: "D"
+        currencyCode:
+          type: string
+          maxLength: 4
+          description: Native Currency Code (ISO 4217 alpha code)
+          example: "ARS"
+        tranAmount:
+          type: number
+          format: double
+          maxLength: 12
+          description: Transaction Amount in Native Currency
+          example: 57.61
+
+    # =========================================================================
+    # AUTHORIZATION LOG REPORT SCHEMAS
+    # =========================================================================
+
+    AuthorizationLogDetailResponse:
+      type: object
+      description: Authorization Log Report - Detail Version response fields
+      properties:
+        terminalId:
+          type: string
+          maxLength: 20
+          description: Profile ID
+          example: "'94100006000500000001"
+        tranDate:
+          type: string
+          format: date
+          description: Transaction Date (MM/DD/YYYY)
+          example: "05/01/2023"
+        tranTime:
+          type: string
+          pattern: '^\d{2}:\d{2}:\d{2}$'
+          description: Time of Authorization (HH:MM:SS)
+          example: "19:50:21"
+        posCond:
+          type: string
+          maxLength: 4
+          description: POS Condition Code
+          example: "8"
+        termFmt:
+          type: string
+          maxLength: 10
+          description: Historical Data - N/A
+          example: "3"
+        cardNumber:
+          type: string
+          maxLength: 16
+          description: Truncated Card Number
+          example: "520424xxxxxx0049"
+        mcc:
+          type: string
+          maxLength: 4
+          description: Merchant Category Code
+          example: "5999"
+        cardType:
+          type: string
+          maxLength: 2
+          description: Brand of Card
+          example: "MC"
+        tranAmount:
+          type: number
+          format: double
+          maxLength: 12
+          description: Amount of Authorization
+          example: 500.0
+        expDate:
+          type: string
+          maxLength: 4
+          pattern: '^\d{4}$'
+          description: Card Expiration Date (YYMM)
+          example: "2412"
+        responseCode:
+          type: string
+          maxLength: 2
+          description: Authorization Response Code
+          example: "00"
+        authCode:
+          type: string
+          maxLength: 6
+          description: Authorization Number
+          example: "T40759"
+        host:
+          type: string
+          maxLength: 10
+          description: Authorization Host
+          example: "Trident"
+        lineType:
+          type: string
+          maxLength: 10
+          description: Historical Data - N/A
+          example: ""
+        src:
+          type: string
+          maxLength: 2
+          description: Authorization Source
+          example: "7"
+        stationId:
+          type: string
+          maxLength: 10
+          description: Historical Data - N/A
+          example: ""
+        avs:
+          type: string
+          maxLength: 2
+          description: Address Verification Service result
+          example: "A"
+        cvvCvv2:
+          type: string
+          maxLength: 2
+          description: Card Verification Value result
+          example: "/"
+        ps2000:
+          type: string
+          maxLength: 2
+          description: Returned ACI
+          example: "N"
+        tranId:
+          type: string
+          maxLength: 15
+          description: Transaction ID
+          example: "0501MCC000001"
+        valCode:
+          type: string
+          maxLength: 4
+          description: Validation Code
+          example: ""
+        productCode:
+          type: string
+          maxLength: 2
+          description: Product Level Result Code
+          example: "MCC"
+        currencyCode:
+          type: string
+          maxLength: 3
+          description: Authorized Currency (ISO 3-Digit Alpha Currency code)
+          example: "USD"
+        digitalWallet:
+          type: string
+          description: Type of Digital Wallet (added November 2022)
+          enum: ["APPLE", "GOOGLE", ""]
+          example: ""
+
+    # =========================================================================
+    # PAYMENT GATEWAY UNSETTLED REPORT SCHEMAS
+    # =========================================================================
+
+    PaymentGatewayUnsettledResponse:
+      type: object
+      description: Unsettled Payment Gateway Report response fields
+      properties:
+        tranId:
+          type: string
+          maxLength: 32
+          description: Trident Transaction ID
+          example: "7679fc5af3253c5fbeaa798458e5c545"
+        tranDate:
+          type: string
+          format: date
+          description: Transaction Date (MM/DD/YYYY)
+          example: "11/12/2013"
+        cardType:
+          type: string
+          maxLength: 2
+          description: Brand of Card
+          example: "VS"
+        cardNumber:
+          type: string
+          maxLength: 16
+          description: Truncated Card Number
+          example: "401288xxxxxx8882"
+        referenceNumber:
+          type: string
+          maxLength: 10
+          description: ARN - 23-digit reference number used when transaction is processed to issuing bank
+          example: "528630419"
+        invoiceNumber:
+          type: string
+          maxLength: 17
+          description: Invoice Number
+          example: "123456"
+        authCode:
+          type: string
+          maxLength: 6
+          description: Authorization Number
+          example: "T5566H"
+        status:
+          type: string
+          maxLength: 1
+          description: Gateway Transaction Type
+          example: "D"
+        currencyCode:
+          type: string
+          maxLength: 3
+          description: Currency Type (ISO alpha code)
+          example: "USD"
+        amount:
+          type: number
+          format: double
+          maxLength: 12
+          description: Dollar Amount of the Transaction
+          example: 9.95
+
+    # =========================================================================
+    # PAYMENT GATEWAY SETTLED REPORT SCHEMAS
+    # =========================================================================
+
+    PaymentGatewaySettledResponse:
+      type: object
+      description: Settled Payment Gateway Report response fields
+      properties:
+        tranId:
+          type: string
+          maxLength: 32
+          description: Trident Transaction ID
+          example: "7679fc5af3253c5fbeaa798458e5c545"
+        tranDate:
+          type: string
+          format: date
+          description: Transaction Processed Date (MM/DD/YYYY)
+          example: "11/12/2013"
+        settleDate:
+          type: string
+          format: date
+          description: Transaction Settlement Date (MM/DD/YYYY)
+          example: "11/13/2013"
+        cardType:
+          type: string
+          maxLength: 2
+          description: Brand of Card
+          example: "VS"
+        cardNumber:
+          type: string
+          maxLength: 16
+          description: Truncated Card Number
+          example: "401288xxxxxx8882"
+        referenceNumber:
+          type: string
+          maxLength: 10
+          description: ARN - 23-digit reference number used when transaction is processed to issuing bank
+          example: "528630419"
+        invoiceNumber:
+          type: string
+          maxLength: 17
+          description: Invoice Number
+          example: "123456"
+        authCode:
+          type: string
+          maxLength: 6
+          description: Authorization Number
+          example: "T5566H"
+        currencyCode:
+          type: string
+          maxLength: 3
+          description: Currency Type (ISO alpha code)
+          example: "USD"
+        amount:
+          type: number
+          format: double
+          maxLength: 12
+          description: Transaction Amount
+          example: 9.95
+
+    # =========================================================================
+    # PAYMENT GATEWAY REJECTED REPORT SCHEMAS
+    # =========================================================================
+
+    PaymentGatewayRejectedResponse:
+      type: object
+      description: Rejected Payment Gateway Report response fields
+      properties:
+        date:
+          type: string
+          maxLength: 18
+          description: Date and Time Stamp of Transaction (MM/DD/YYYY HH:MM:SS)
+          example: "11/12/2013 3:55:15"
+        tranType:
+          type: string
+          maxLength: 12
+          description: Type of Transaction Attempted
+          example: "Sale"
+        dbaName:
+          type: string
+          maxLength: 25
+          description: Merchant DBA Name
+          example: "YourStoreName"
+        accountNumber:
+          type: string
+          maxLength: 16
+          description: Truncated Card Number
+          example: "401288xxxxxx8882"
+        tranAmount:
+          type: number
+          format: double
+          maxLength: 12
+          description: Transaction Amount
+          example: 19.95
+        errorCodeDescription:
+          type: string
+          maxLength: 20
+          description: 3-Digit Error Code and Detail Description
+          example: "005 - Decline"
+        avsResult:
+          type: string
+          maxLength: 1
+          description: Address Verification Result Code
+          example: "N"
+        cvv2Result:
+          type: string
+          maxLength: 1
+          description: CVV Card Code Result
+          example: "M"
+        transactionId:
+          type: string
+          maxLength: 32
+          description: Trident Transaction ID
+          example: "7679fc5af3253c5fbeaa798458e5c545"
+        invoiceNumber:
+          type: string
+          maxLength: 17
+          description: Invoice Number
+          example: "123456"
+
+    # =========================================================================
+    # CUSTOM QUERY - VISA ARDEF SCHEMAS
+    # =========================================================================
+
+    VisaArdefResponse:
+      type: object
+      description: Visa ARDEF Custom Query response fields
+      properties:
+        rangeLow:
+          type: string
+          description: The low range ARDEF value
+          example: "101100000"
+        rangeHigh:
+          type: string
+          description: The high range ARDEF value
+          example: "152080999"
+        usage:
+          type: string
+          description: Null - this field is no longer used
+          example: "D"
+        cardType:
+          type: string
+          description: Null - this field is no longer used
+          example: "A"
+        commCardServiceInd:
+          type: string
+          description: Null - this field is no longer used
+          example: "null"
+        productId:
+          $ref: '#/components/schemas/VisaProductIdEnum'
+        productTypeExt:
+          type: string
+          description: Null - this field is no longer used
+          example: "null"
+        issuerCountry:
+          type: string
+          maxLength: 2
+          description: Country of Issuer BIN (Visa 2-character code)
+          example: "US"
+        fundingSource:
+          $ref: '#/components/schemas/FundingSourceEnum'
+
+    VisaProductIdEnum:
+      type: string
+      description: |
+        Visa Product ID codes:
+        - A^: Visa Classic/Traditional
+        - AX: American Express
+        - B^: Visa Gold/Plat/Trad Rewards
+        - C^: Visa Signature
+        - D^: Visa Infinite/Signature Pref
+        - DI: Discover
+        - DN: Diners
+        - E^: Proprietary ATM
+        - F^: Visa Classic
+        - G^: Visa Business
+        - G1: Visa Signature Business
+        - G3: Visa Business Enhanced (U.S. Only)
+        - I^: Visa Infinite
+        - I1: Visa Infinite Privilege
+        - I2: Ultra High Net Worth
+        - JC: JCB
+        - J3: Visa Healthcare
+        - K^: Visa Corporate T&E
+        - K1: Visa GSA Corporate T&E
+        - L^: Electron
+        - M^: MasterCard/Euro Card and Diners
+        - N^: Visa Platinum
+        - N1: Visa Rewards
+        - N2: Visa Select
+        - O^: Reserved
+        - P^: Visa Gold
+        - Q^: Private Label
+        - Q2: Private Level Basic
+        - Q3: Private Level Standard
+        - Q4: Private Level Enhanced
+        - Q5: Private Label Specialized
+        - Q6: Private Level Premium
+        - R^: Proprietary
+        - S^: Visa Purchasing
+        - S1: Visa Purchasing with Fleet
+        - S2: Visa GSA Purchasing
+        - S3: Visa GSA Purchasing with Fleet
+        - S4: Commercial Agriculture
+        - S5: Commercial Transport EBT
+        - S6: Commercial Marketplace
+        - U^: Visa Travel Money
+        - V^: V Pay
+        - Spaces: Unspecified
+      example: "A^"
+
+    FundingSourceEnum:
+      type: string
+      enum: ["C", "D", "P", "H", "R"]
+      description: |
+        Funding Source:
+        - C: Credit
+        - D: Debit
+        - P: Prepaid
+        - H: Charge
+        - R: Deferred Debit
+      example: "C"
+
+    # =========================================================================
+    # CUSTOM QUERY - MASTERCARD ARDEF SCHEMAS
+    # =========================================================================
+
+    MastercardArdefResponse:
+      type: object
+      description: MasterCard ARDEF Custom Query response fields
+      properties:
+        effectiveDate:
+          type: string
+          format: date
+          description: Date and time that the information in this record becomes effective or was last updated
+          example: "04/11/2012"
+        rangeLow:
+          type: string
+          description: The low range ARDEF value
+          example: "3600000000000000000"
+        rangeHigh:
+          type: string
+          description: The high range ARDEF value
+          example: "3612339999999999999"
+        issuerCountry:
+          type: string
+          maxLength: 3
+          description: Country of Issuer BIN (MasterCard 3-character code)
+          example: "CHL"
+        cardProgramId:
+          $ref: '#/components/schemas/CardProgramIdEnum'
+        gcmsProductId:
+          type: string
+          maxLength: 3
+          description: |
+            Identifies the product recognized by the GCMS for the combination of issuer 
+            account range and Card Program Identifier. This is a top-level hierarchy; 
+            Licensed_Product_Id should be used when identifying primary card characteristics.
+          example: "MCC"
+        licensedProductId:
+          type: string
+          maxLength: 3
+          description: |
+            Identifies the actual product code assigned by MasterCard when licensing the 
+            combination of issuer account range and Card Program Identifier. This field 
+            should be used as primary means to identify card characteristics.
+          example: "MCC"
+        productTypeId:
+          type: string
+          enum: ["1", "2", "3"]
+          description: |
+            The product type of the associated account range and card program identifier:
+            - 1: Consumer
+            - 2: Commercial
+            - 3: Both
+          example: "1"
+        accountLevelInd:
+          type: string
+          enum: ["N", "Y"]
+          description: |
+            Account Level Processing indicator:
+            - N: No cardholder accounts within range are participants in Account Level Processing or Co-Brand Proprietary Card Program
+            - Y: Some cardholder accounts within range are participants in Account Level Processing or Co-Brand Proprietary Card Program
+          example: "N"
+        accountLevelDate:
+          type: string
+          format: date
+          description: The account level activation date (yymmdd)
+          example: "11/30/1999"
+
+    CardProgramIdEnum:
+      type: string
+      enum: ["CIR", "DMC", "MCC", "MSI", "PRO", "PVL", "SOL", "SWI", ""]
+      description: |
+        Three-character code that identifies the card program or financial network:
+        - CIR: Cirrus®
+        - DMC: Debit MasterCard®
+        - MCC: MasterCard® Credit
+        - MSI: Maestro®
+        - PRO: Sweden domestic brand
+        - PVL: Private label
+        - SOL: U.K. domestic Solo brand (Pre-edit system only)
+        - SWI: U.K. domestic Switch brand (Pre-edit system only)
+        - Spaces: Members must submit all spaces unless specifically directed otherwise
+      example: "MCC"
+
+    # =========================================================================
+    # CUSTOM QUERY - DISCOVER ARDEF SCHEMAS
+    # =========================================================================
+
+    DiscoverArdefResponse:
+      type: object
+      description: Discover ARDEF Custom Query response fields
+      properties:
+        effectiveDate:
+          type: string
+          format: date
+          description: Date and time that the information in this record becomes effective or was last updated
+          example: "04/11/2012"
+        prefix:
+          type: string
+          description: IIN (Prefix) Number
+          example: "601100"
+        prefixLength:
+          type: string
+          description: IIN Prefix Length (00 through 19)
+          example: "06"
+        lengthMin:
+          type: string
+          description: Minimum PAN Length (00 through 19)
+          example: "16"
+        lengthMax:
+          type: string
+          description: Maximum PAN Length (00 through 19)
+          example: "16"
+        issuerCountry:
+          type: string
+          description: ISO country code value
+          example: "US"
+        cardProductId:
+          $ref: '#/components/schemas/DiscoverCardProductIdEnum'
+        foreignCardInd:
+          type: string
+          enum: ["0", "1"]
+          description: |
+            Indicates country of issuance:
+            - 0: U.S.
+            - 1: Outside of the U.S.
+          example: "0"
+        accountLevelInd:
+          type: string
+          enum: ["0", "1"]
+          description: |
+            Indicates if this IIN range has account level processing enabled:
+            - 0: No
+            - 1: Yes
+          example: "0"
+
+    DiscoverCardProductIdEnum:
+      type: string
+      enum: ["001", "002", "003", "004", "005", "006", "007", "008", "009", "010", "011", "012", "013", "014"]
+      description: |
+        Discover Card Product ID:
+        - 001: Consumer Credit-Rewards
+        - 002: Commercial Credit
+        - 003: Consumer Debit
+        - 004: Commercial Debit
+        - 005: Prepaid Gift
+        - 006: Prepaid ID Known
+        - 007: Consumer Credit - Premium
+        - 008: Consumer Credit - Core
+        - 009: Private Label Credit Card
+        - 010: Commercial Credit - Executive Business
+        - 011: Consumer Credit - Premium Plus
+        - 012: Commercial Prepaid - Non-Reloadable
+        - 013: PayPal Payment Card
+        - 014: PayPal Mobile In-Store Payment: Payment Code
+      example: "001"
+
+    # =========================================================================
+    # CARD TYPE CODES
+    # =========================================================================
+
+    CardTypeCodeEnum:
+      type: string
+      enum: ["VS", "MC", "DS", "AM", "DN", "JC", "DB"]
+      description: |
+        Card Type brand codes:
+        - VS: Visa
+        - MC: MasterCard
+        - DS: Discover
+        - AM: American Express
+        - DN: Diners Club
+        - JC: JCB
+        - DB: Debit/EBT
+      example: "VS"
+
+    # =========================================================================
+    # ENTRY MODE CODES
+    # =========================================================================
+
+    EntryModeEnum:
+      type: string
+      enum: ["KEYED", "SWIPED", "CHIP", "CONTACTLESS", "ECOMMERCE"]
+      description: |
+        Method of Card Number Entry:
+        - KEYED: Manually entered
+        - SWIPED: Magnetic stripe
+        - CHIP: EMV chip
+        - CONTACTLESS: NFC/contactless
+        - ECOMMERCE: Online/e-commerce
+      example: "KEYED"
+
+    # =========================================================================
+    # CHARGEBACK REASON CODES
+    # =========================================================================
+
+    ChargebackReasonCode:
+      type: object
+      description: Chargeback reason code mapping across card networks
+      properties:
+        description:
+          type: string
+          description: Description of the chargeback reason
+        visaCode:
+          type: string
+          description: Visa reason code
+        mastercardCode:
+          type: string
+          description: MasterCard reason code
+        discoverCode:
+          type: string
+          description: Discover reason code
+        amexCode:
+          type: string
+          description: American Express reason code
+
+    # =========================================================================
+    # VCR (VISA CLAIMS RESOLUTION) CHARGEBACK CODES
+    # =========================================================================
+
+    VcrChargebackCode:
+      type: object
+      description: Visa Claims Resolution (VCR) chargeback codes
+      properties:
+        code:
+          type: string
+          description: VCR dispute condition code
+          example: "10.1"
+        description:
+          type: string
+          description: Description of the dispute condition
+          example: "EMV Liability Shift Counterfeit Fraud"
+
+    # =========================================================================
+    # RETRIEVAL REASON CODES
+    # =========================================================================
+
+    RetrievalReasonCode:
+      type: object
+      description: Retrieval request reason code mapping across card networks
+      properties:
+        description:
+          type: string
+          description: Description of the retrieval reason
+        visaCode:
+          type: string
+          description: Visa reason code
+        mastercardCode:
+          type: string
+          description: MasterCard reason code
+        discoverCode:
+          type: string
+          description: Discover reason code
+        amexCode:
+          type: string
+          description: American Express reason code
+
+    # =========================================================================
+    # ERROR RESPONSE
+    # =========================================================================
+
+    ErrorResponse:
+      type: object
+      properties:
+        errorCode:
+          type: string
+          description: Error code
+        errorMessage:
+          type: string
+          description: Human-readable error message
+        timestamp:
+          type: string
+          format: date-time
+          description: Timestamp of the error
+
+  securitySchemes:
+    formAuth:
+      type: apiKey
+      in: query
+      name: userId
+      description: |
+        Authentication is performed via form parameters:
+        - `userId`: User Login ID for the ME web reporting system
+        - `userPass`: User Login Password for the ME web reporting system
+        
+        Both parameters must be included in every request body.
+
+security:
+  - formAuth: []
